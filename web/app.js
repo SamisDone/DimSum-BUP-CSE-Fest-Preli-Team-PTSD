@@ -17,6 +17,11 @@ const $ = (sel) => document.querySelector(sel);
 const fmt = (n, d = 2) =>
   Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 
+/** Element-wise compare — avoids picking a separator that could appear in a note. */
+function sameStrings(a, b) {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
 const STAGES = [
   "Energy Data + Operator Notes",
   "LLM Interpreter",
@@ -265,8 +270,7 @@ function renderDirectives(directives, notes) {
 
 function renderStats(r) {
   const ref = state.current?.reference;
-  const sameScenario =
-    ref && state.notes.join(" ") === state.current.input.operator_notes.join(" ");
+  const sameScenario = ref && sameStrings(state.notes, state.current.input.operator_notes);
 
   const cells = [
     { k: "Total cost", v: fmt(r.total_cost_bdt), u: "BDT", ref: sameScenario ? ref.total_cost_bdt : null },
@@ -467,11 +471,18 @@ async function boot() {
   checkHealth();
 
   try {
-    const res = await fetch("./samples.json");
+    // Absolute, not "./samples.json": the document lives at "/", so a relative
+    // path resolves to /samples.json, which is not a route.
+    const res = await fetch("/assets/samples.json");
+    if (!res.ok) throw new Error(String(res.status));
     const data = await res.json();
+    if (!Array.isArray(data.cases) || !data.cases.length) throw new Error("empty");
     state.samples = data.cases;
-  } catch {
-    showBanner("Could not load the published sample scenarios.", true);
+  } catch (err) {
+    showBanner(
+      `Could not load the published sample scenarios (${err.message}). The console needs /assets/samples.json.`,
+      true,
+    );
     return;
   }
 
