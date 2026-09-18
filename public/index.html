@@ -1,0 +1,1197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GridWise Operator Console</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #fbfbfc;
+    --ink: #14171a;
+    --ink-2: #5b6570;
+    --ink-3: #8b949e;
+    --line: #e3e6ea;
+    --line-2: #eef0f3;
+    --accent: #2b6cb0;
+    --accent-soft: #e8f0f9;
+    --ok: #1f7a4d;
+    --ok-soft: #e6f4ec;
+    --bad: #b42318;
+    --bad-soft: #fdeceb;
+    --warn: #8a5a00;
+    --warn-soft: #fdf3e2;
+    --grid-c: #c2453a;
+    --solar-c: #d4a017;
+    --batt-c: #2f7d6f;
+    --demand-c: #2b3137;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --panel: #1c2024;
+      --panel-2: #21262b;
+      --ink: #e7eaee;
+      --ink-2: #a3adb8;
+      --ink-3: #79838e;
+      --line: #2c3237;
+      --line-2: #24292e;
+      --accent: #6ea8e0;
+      --accent-soft: #1d2a38;
+      --ok: #5fc78e;
+      --ok-soft: #16281e;
+      --bad: #f08d84;
+      --bad-soft: #2d1a19;
+      --warn: #e0b563;
+      --warn-soft: #2a2117;
+      --grid-c: #e2786c;
+      --solar-c: #e8bf55;
+      --batt-c: #63b9a8;
+      --demand-c: #cdd4da;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 16px 64px;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  header {
+    padding: 24px 0 18px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 20px;
+  }
+  h1 { margin: 0 0 4px; font-size: 19px; letter-spacing: -0.2px; }
+  .sub { color: var(--ink-2); font-size: 13px; }
+  .pipeline {
+    margin-top: 12px; font-family: var(--mono); font-size: 11.5px;
+    color: var(--ink-3); overflow-x: auto; white-space: nowrap;
+    padding-bottom: 4px;
+  }
+  .pipeline b { color: var(--accent); font-weight: 600; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .panel > h2 {
+    margin: 0; padding: 12px 16px;
+    font-size: 12.5px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--ink-2);
+    background: var(--panel-2); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .panel > h2 .spec {
+    font-weight: 400; text-transform: none; letter-spacing: 0;
+    color: var(--ink-3); font-family: var(--mono); font-size: 11px;
+  }
+  .panel > h2 .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .body { padding: 16px; }
+
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .col { flex: 1 1 280px; min-width: 0; }
+
+  label { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 4px; }
+  input[type=text], input[type=number], textarea, select {
+    width: 100%; padding: 7px 9px; font: inherit; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 54px; font-size: 13px; }
+  .field { margin-bottom: 12px; }
+
+  button {
+    font: inherit; font-weight: 500; cursor: pointer;
+    padding: 7px 13px; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink);
+  }
+  button:hover { border-color: var(--ink-3); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(1.08); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.small { padding: 4px 9px; font-size: 12px; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 8px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 600; font-family: var(--mono);
+    border: 1px solid transparent;
+  }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.bad { background: var(--bad-soft); color: var(--bad); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.idle { background: var(--line-2); color: var(--ink-3); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-3); font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  td.l, th.l { text-align: left; }
+  tbody tr:hover { background: var(--panel-2); }
+  .scroll { overflow-x: auto; }
+  .num { font-family: var(--mono); font-size: 12.5px; }
+
+  .samples { display: flex; flex-wrap: wrap; gap: 6px; }
+  .samples button { font-family: var(--mono); font-size: 11.5px; padding: 4px 8px; }
+  .samples button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+  .metrics { display: flex; gap: 12px; flex-wrap: wrap; }
+  .metric {
+    flex: 1 1 150px; padding: 11px 13px; border-radius: 8px;
+    background: var(--panel-2); border: 1px solid var(--line);
+  }
+  .metric .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-3); }
+  .metric .v { font-family: var(--mono); font-size: 17px; margin-top: 3px; }
+  .metric .d { font-size: 11.5px; margin-top: 2px; color: var(--ink-3); font-family: var(--mono); }
+
+  ul.checks { list-style: none; margin: 0; padding: 0; }
+  ul.checks li {
+    display: flex; gap: 9px; align-items: flex-start;
+    padding: 5px 0; border-bottom: 1px solid var(--line-2); font-size: 13px;
+  }
+  ul.checks li:last-child { border-bottom: 0; }
+  ul.checks .mark { flex: 0 0 auto; font-family: var(--mono); font-weight: 700; font-size: 12px; }
+  ul.checks .pass .mark { color: var(--ok); }
+  ul.checks .fail .mark { color: var(--bad); }
+  ul.checks .txt { min-width: 0; }
+  ul.checks .why { color: var(--ink-3); font-size: 12px; font-family: var(--mono); word-break: break-word; }
+
+  pre {
+    margin: 0; padding: 12px; border-radius: 8px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font-family: var(--mono); font-size: 12px; line-height: 1.45;
+    overflow-x: auto; max-height: 380px;
+  }
+  .muted { color: var(--ink-3); }
+  .note { font-size: 12.5px; color: var(--ink-2); margin: 0 0 12px; }
+  .warnbox {
+    padding: 10px 12px; border-radius: 8px; font-size: 12.5px;
+    background: var(--warn-soft); color: var(--warn); border: 1px solid transparent;
+    margin-bottom: 14px;
+  }
+  .errbox {
+    padding: 10px 12px; border-radius: 8px; font-size: 12.5px;
+    background: var(--bad-soft); color: var(--bad); font-family: var(--mono);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin-top: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .hours-grid { font-size: 12px; }
+  .hours-grid input { padding: 4px 6px; font-family: var(--mono); font-size: 12px; }
+  [hidden] { display: none !important; }
+  footer { color: var(--ink-3); font-size: 12px; padding-top: 8px; }
+  footer code { font-family: var(--mono); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>GridWise Operator Console</h1>
+  <div class="sub">
+    Client for <span class="num">POST /optimize-energy</span> — BUP CSE Fest 2026 preliminary.
+    Not a graded deliverable; the judged API is reached directly and is not behind this page.
+  </div>
+  <div class="pipeline">
+    Energy Data + Operator Notes &rarr; <b>LLM Interpreter</b> &rarr; <b>Guardrail Validator</b>
+    &rarr; <b>Math Optimizer</b> &rarr; <b>Final Validator</b> &rarr; API Response
+  </div>
+</header>
+
+<!-- ── service ───────────────────────────────────────────────────────── -->
+<section class="panel">
+  <h2>Service <span class="spec">§06 API contract</span>
+    <span class="right">
+      <span id="healthPill" class="pill idle">not checked</span>
+      <button class="small" id="btnHealth">Check /health</button>
+    </span>
+  </h2>
+  <div class="body">
+    <div class="row">
+      <div class="col" style="flex:2 1 380px">
+        <label for="apiBase">API base URL</label>
+        <input type="text" id="apiBase" spellcheck="false" placeholder="http://localhost:3000">
+      </div>
+      <div class="col">
+        <label for="latRuns">Latency samples</label>
+        <div style="display:flex; gap:8px">
+          <input type="number" id="latRuns" value="10" min="1" max="50" style="flex:0 0 90px">
+          <button class="small" id="btnLatency" style="flex:1 1 auto">Measure p95</button>
+        </div>
+      </div>
+    </div>
+    <div class="metrics" id="latMetrics" hidden></div>
+  </div>
+</section>
+
+<!-- ── scenario ──────────────────────────────────────────────────────── -->
+<section class="panel">
+  <h2>Scenario <span class="spec">§07 request schema</span>
+    <span class="right">
+      <button class="small" id="btnToggleHours">Show 24-hour grid</button>
+    </span>
+  </h2>
+  <div class="body">
+    <p class="note">Load a public sample case, or edit any field. All 10 cases come from the official pack.</p>
+    <div class="samples" id="samples"><span class="muted">loading samples…</span></div>
+
+    <div class="row" style="margin-top:16px">
+      <div class="col">
+        <div class="field">
+          <label for="scenarioId">scenario_id</label>
+          <input type="text" id="scenarioId" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="notes">operator_notes — one per line, 1 to 3 non-empty</label>
+          <textarea id="notes" rows="4" spellcheck="false"></textarea>
+        </div>
+      </div>
+      <div class="col">
+        <div class="row" style="gap:10px">
+          <div class="col" style="flex:1 1 120px">
+            <div class="field"><label for="bCap">capacity_kwh</label><input type="number" id="bCap" step="any"></div>
+            <div class="field"><label for="bInit">initial_energy_kwh</label><input type="number" id="bInit" step="any"></div>
+            <div class="field"><label for="bMin">minimum_energy_kwh</label><input type="number" id="bMin" step="any"></div>
+          </div>
+          <div class="col" style="flex:1 1 120px">
+            <div class="field"><label for="bChg">max_charge_kwh_per_hour</label><input type="number" id="bChg" step="any"></div>
+            <div class="field"><label for="bDis">max_discharge_kwh_per_hour</label><input type="number" id="bDis" step="any"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="hoursWrap" hidden>
+      <div class="scroll">
+        <table class="hours-grid">
+          <thead><tr><th class="l">hour</th><th>demand_kwh</th><th>solar_kwh</th><th>tariff_bdt_per_kwh</th></tr></thead>
+          <tbody id="hoursBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="preflight" style="margin-top:14px"></div>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px">
+      <button class="primary" id="btnSend">Send request</button>
+      <button id="btnMalformed" title="Posts a deliberately broken body — the service must answer 400">Send malformed JSON</button>
+      <button id="btnTrim" title="Posts 23 hour entries — must be rejected">Send 23 hours</button>
+      <button id="btnEmptyNotes" title="Posts an empty notes array — must be rejected">Send 0 notes</button>
+    </div>
+  </div>
+</section>
+
+<div id="out" hidden>
+
+  <!-- ── verdict ─────────────────────────────────────────────────────── -->
+  <section class="panel">
+    <h2>Result <span class="spec">§11 validation</span>
+      <span class="right">
+        <span id="statusPill" class="pill idle">—</span>
+        <span id="timePill" class="pill idle">—</span>
+      </span>
+    </h2>
+    <div class="body">
+      <div id="errBox" hidden></div>
+      <div id="verdict" class="metrics"></div>
+    </div>
+  </section>
+
+  <!-- ── interpretation ──────────────────────────────────────────────── -->
+  <section class="panel">
+    <h2>Directive interpretation <span class="spec">§10.2 · §11.1</span>
+      <span class="right"><span id="dirPill" class="pill idle">—</span></span>
+    </h2>
+    <div class="body scroll">
+      <table>
+        <thead><tr>
+          <th class="l">note_index</th><th class="l">operator note</th>
+          <th class="l">applies</th><th class="l">directive_type</th>
+          <th class="l">structured_adjustment</th><th class="l">expected</th>
+        </tr></thead>
+        <tbody id="dirBody"></tbody>
+      </table>
+      <p class="note" style="margin:12px 0 0">
+        Explanation wording is not compared — the rubric does not match it byte-for-byte.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── validity ────────────────────────────────────────────────────── -->
+  <section class="panel">
+    <h2>Final validator replay <span class="spec">§09 · §11.3</span>
+      <span class="right"><span id="validPill" class="pill idle">—</span></span>
+    </h2>
+    <div class="body">
+      <p class="note" id="replayNote"></p>
+      <ul class="checks" id="checks"></ul>
+    </div>
+  </section>
+
+  <!-- ── charts ──────────────────────────────────────────────────────── -->
+  <section class="panel">
+    <h2>Hourly energy <span class="spec">§09.5 energy balance</span></h2>
+    <div class="body">
+      <div id="chartEnergy"></div>
+      <div class="legend">
+        <span><i style="background:var(--grid-c)"></i>grid</span>
+        <span><i style="background:var(--solar-c)"></i>solar used</span>
+        <span><i style="background:var(--batt-c)"></i>battery discharge</span>
+        <span><i style="background:var(--demand-c)"></i>demand</span>
+        <span class="muted">bars above demand = battery charging</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Battery state of charge <span class="spec">§09.1–09.6</span></h2>
+    <div class="body">
+      <div id="chartSoc"></div>
+      <div class="legend">
+        <span><i style="background:var(--batt-c)"></i>energy after hour</span>
+        <span><i style="background:var(--bad)"></i>active reserve floor</span>
+        <span><i style="background:var(--ink-3)"></i>capacity</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── plan ────────────────────────────────────────────────────────── -->
+  <section class="panel">
+    <h2>24-hour plan <span class="spec">§10.3 hourly_plan</span></h2>
+    <div class="body scroll">
+      <table>
+        <thead><tr>
+          <th class="l">hour</th><th>demand</th><th>tariff</th><th>eff. solar</th>
+          <th>grid_kwh</th><th>solar_used_kwh</th>
+          <th class="l">battery_action</th><th>battery_kwh</th><th>energy_after</th><th>cost</th>
+        </tr></thead>
+        <tbody id="planBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── raw ─────────────────────────────────────────────────────────── -->
+  <section class="panel">
+    <h2>Raw JSON
+      <span class="right">
+        <button class="small" id="btnCopyReq">Copy request</button>
+        <button class="small" id="btnCopyRes">Copy response</button>
+      </span>
+    </h2>
+    <div class="body row">
+      <div class="col"><label>request</label><pre id="rawReq"></pre></div>
+      <div class="col"><label>response</label><pre id="rawRes"></pre></div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Served by <code>frontend.ts</code>, which proxies <code>/api/*</code> to the API base above.
+  Tolerance for every numeric check is 0.01 (Problem Statement §11.5).
+</footer>
+
+</div>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------------------
+// Constants from the Problem Statement
+// ---------------------------------------------------------------------------
+
+const H = 24;
+const TOL = 0.01;                       // §11.5 absolute tolerance
+const LATENCY_BUDGET_MS = 5000;         // Category 5: p95 <= 5s scores 3/3
+const DIRECTIVE_TYPES = [
+  "solar_reduction", "minimum_battery_reserve", "no_charge_window",
+  "no_discharge_window", "max_grid_window", "no_op",
+];
+const ACTIONS = ["charge", "discharge", "idle"];
+
+const $ = (id) => document.getElementById(id);
+const fmt = (v, dp = 2) =>
+  typeof v === "number" && isFinite(v)
+    ? (Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : v.toFixed(dp))
+    : String(v);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+let SAMPLES = [];
+let activeSample = null;   // the loaded public case, or null for hand-edited input
+let lastRequest = null;
+let lastResponse = null;
+
+// ---------------------------------------------------------------------------
+// Scenario form
+// ---------------------------------------------------------------------------
+
+function blankHours() {
+  return Array.from({ length: H }, (_, h) => ({
+    hour: h, demand_kwh: 100, solar_kwh: 0, tariff_bdt_per_kwh: 6,
+  }));
+}
+
+function renderHours(hours) {
+  $("hoursBody").innerHTML = hours.map((e) => `
+    <tr>
+      <td class="l num">${e.hour}</td>
+      <td><input type="number" step="any" data-h="${e.hour}" data-k="demand_kwh" value="${e.demand_kwh}"></td>
+      <td><input type="number" step="any" data-h="${e.hour}" data-k="solar_kwh" value="${e.solar_kwh}"></td>
+      <td><input type="number" step="any" data-h="${e.hour}" data-k="tariff_bdt_per_kwh" value="${e.tariff_bdt_per_kwh}"></td>
+    </tr>`).join("");
+}
+
+function loadScenario(input) {
+  $("scenarioId").value = input.scenario_id ?? "";
+  $("notes").value = (input.operator_notes ?? []).join("\n");
+  const b = input.battery ?? {};
+  $("bCap").value = b.capacity_kwh ?? "";
+  $("bInit").value = b.initial_energy_kwh ?? "";
+  $("bMin").value = b.minimum_energy_kwh ?? "";
+  $("bChg").value = b.max_charge_kwh_per_hour ?? "";
+  $("bDis").value = b.max_discharge_kwh_per_hour ?? "";
+  renderHours(input.hours ?? blankHours());
+  preflight();
+}
+
+/** Read the form back into the exact §07 request shape. */
+function readScenario() {
+  const hours = Array.from({ length: H }, (_, h) => ({ hour: h, demand_kwh: 0, solar_kwh: 0, tariff_bdt_per_kwh: 0 }));
+  for (const el of $("hoursBody").querySelectorAll("input")) {
+    const h = Number(el.dataset.h);
+    hours[h][el.dataset.k] = el.value === "" ? NaN : Number(el.value);
+  }
+  return {
+    scenario_id: $("scenarioId").value,
+    operator_notes: $("notes").value.split("\n").map((s) => s.trim()).filter((s) => s.length > 0),
+    hours,
+    battery: {
+      capacity_kwh: Number($("bCap").value),
+      initial_energy_kwh: Number($("bInit").value),
+      minimum_energy_kwh: Number($("bMin").value),
+      max_charge_kwh_per_hour: Number($("bChg").value),
+      max_discharge_kwh_per_hour: Number($("bDis").value),
+    },
+  };
+}
+
+/**
+ * Client-side mirror of the documented request schema (§07), so structurally
+ * invalid input is visible before the service answers 400.
+ */
+function preflight() {
+  const r = readScenario();
+  const problems = [];
+
+  if (!r.scenario_id) problems.push("scenario_id must be a non-empty string");
+  if (r.operator_notes.length < 1) problems.push("operator_notes needs at least 1 non-empty string");
+  if (r.operator_notes.length > 3) problems.push(`operator_notes allows at most 3, got ${r.operator_notes.length}`);
+
+  for (const e of r.hours) {
+    for (const k of ["demand_kwh", "solar_kwh", "tariff_bdt_per_kwh"]) {
+      if (!isFinite(e[k])) problems.push(`hour ${e.hour}: ${k} must be a finite number`);
+      else if (e[k] < 0) problems.push(`hour ${e.hour}: ${k} must be non-negative`);
+    }
+  }
+
+  const b = r.battery;
+  for (const [k, v] of Object.entries(b)) {
+    if (!isFinite(v)) problems.push(`battery.${k} must be a finite number`);
+    else if (v < 0) problems.push(`battery.${k} must be non-negative`);
+  }
+  if (isFinite(b.capacity_kwh) && isFinite(b.initial_energy_kwh) && b.initial_energy_kwh > b.capacity_kwh) {
+    problems.push("battery.initial_energy_kwh exceeds capacity_kwh");
+  }
+  if (isFinite(b.capacity_kwh) && isFinite(b.minimum_energy_kwh) && b.minimum_energy_kwh > b.capacity_kwh) {
+    problems.push("battery.minimum_energy_kwh exceeds capacity_kwh");
+  }
+
+  const box = $("preflight");
+  if (problems.length === 0) {
+    box.innerHTML = `<span class="pill ok">request matches §07</span>`;
+  } else {
+    box.innerHTML = `<div class="warnbox"><b>${problems.length} issue${problems.length > 1 ? "s" : ""} — the service should answer 400:</b><br>` +
+      problems.slice(0, 8).map(esc).join("<br>") +
+      (problems.length > 8 ? `<br>… and ${problems.length - 8} more` : "") + `</div>`;
+  }
+  $("btnSend").disabled = false;   // sending invalid input on purpose is allowed
+  return problems;
+}
+
+// ---------------------------------------------------------------------------
+// Directive semantics (§05.3) — effective solar, reserves, windows, caps
+//
+// Written from the Problem Statement, independently of optimizer.ts and
+// validator.ts, so agreement between them means something.
+// ---------------------------------------------------------------------------
+
+function directiveModel(hours, battery, directives) {
+  const effSolar = hours.map((e) => Math.max(0, Number(e.solar_kwh) || 0));
+  const reserve = new Array(H).fill(Math.max(0, Number(battery.minimum_energy_kwh) || 0));
+  const gridCap = new Array(H).fill(Infinity);
+  const noCharge = new Array(H).fill(false);
+  const noDischarge = new Array(H).fill(false);
+
+  for (const d of Array.isArray(directives) ? directives : []) {
+    const a = d && d.structured_adjustment;
+    if (!a || typeof a !== "object" || d.directive_type === "no_op") continue;
+    const hrs = Array.isArray(a.hours) ? a.hours.filter((h) => Number.isInteger(h) && h >= 0 && h < H) : [];
+    for (const h of hrs) {
+      switch (d.directive_type) {
+        case "solar_reduction":
+          if (typeof a.factor === "number" && isFinite(a.factor)) {
+            effSolar[h] = Math.min(effSolar[h], effSolar[h] * a.factor);
+          }
+          break;
+        case "minimum_battery_reserve":
+          if (typeof a.minimum_energy_kwh === "number" && isFinite(a.minimum_energy_kwh)) {
+            reserve[h] = Math.max(reserve[h], a.minimum_energy_kwh);
+          }
+          break;
+        case "max_grid_window":
+          if (typeof a.max_grid_kwh === "number" && isFinite(a.max_grid_kwh) && a.max_grid_kwh >= 0) {
+            gridCap[h] = Math.min(gridCap[h], a.max_grid_kwh);
+          }
+          break;
+        case "no_charge_window": noCharge[h] = true; break;
+        case "no_discharge_window": noDischarge[h] = true; break;
+      }
+    }
+  }
+  return { effSolar, reserve, gridCap, noCharge, noDischarge };
+}
+
+// ---------------------------------------------------------------------------
+// Replay — the §09 / §11.3 checks, in the browser
+// ---------------------------------------------------------------------------
+
+function replay(req, res, directives) {
+  const checks = [];
+  const add = (ok, label, why = "") => checks.push({ ok, label, why });
+
+  const hours = req.hours;
+  const b = req.battery;
+  const plan = Array.isArray(res.hourly_plan) ? res.hourly_plan : [];
+  const m = directiveModel(hours, b, directives);
+
+  // ---- response envelope (§10.1) ----
+  const required = ["scenario_id", "directive_interpretation", "hourly_plan",
+    "total_grid_kwh", "total_cost_bdt", "peak_grid_kwh", "plan_summary"];
+  const missing = required.filter((k) => !(k in res));
+  add(missing.length === 0, "All seven top-level response fields present",
+    missing.length ? `missing: ${missing.join(", ")}` : "");
+
+  add(res.scenario_id === req.scenario_id, "scenario_id echoed exactly",
+    res.scenario_id === req.scenario_id ? "" : `sent ${req.scenario_id}, got ${res.scenario_id}`);
+
+  // ---- interpretation schema (§11.1) ----
+  const di = Array.isArray(res.directive_interpretation) ? res.directive_interpretation : [];
+  add(di.length === req.operator_notes.length,
+    "One interpretation entry per operator note",
+    `${req.operator_notes.length} notes, ${di.length} entries`);
+
+  const idxOk = di.every((e, i) => e && e.note_index === i);
+  add(idxOk, "note_index values are 0..N-1 in ascending order",
+    idxOk ? "" : `got [${di.map((e) => e && e.note_index).join(", ")}]`);
+
+  const typeBad = di.filter((e) => !DIRECTIVE_TYPES.includes(e && e.directive_type));
+  add(typeBad.length === 0, "Every directive_type is one of the six supported values",
+    typeBad.length ? `unsupported: ${typeBad.map((e) => e.directive_type).join(", ")}` : "");
+
+  const appliesBad = di.filter((e) => e && (e.directive_type === "no_op" ? e.applies !== false : e.applies !== true));
+  add(appliesBad.length === 0, "applies = false only for no_op, true for every other type",
+    appliesBad.length ? `wrong on note_index ${appliesBad.map((e) => e.note_index).join(", ")}` : "");
+
+  const adjBad = di.filter((e) => e && (e.directive_type === "no_op"
+    ? e.structured_adjustment !== null
+    : !e.structured_adjustment || typeof e.structured_adjustment !== "object"));
+  add(adjBad.length === 0, "structured_adjustment is null for no_op and an object otherwise",
+    adjBad.length ? `wrong on note_index ${adjBad.map((e) => e.note_index).join(", ")}` : "");
+
+  const hoursBad = [];
+  for (const e of di) {
+    const a = e && e.structured_adjustment;
+    if (!a || !Array.isArray(a.hours)) continue;
+    const hs = a.hours;
+    const ascending = hs.every((v, i) => i === 0 || v > hs[i - 1]);
+    const inRange = hs.every((v) => Number.isInteger(v) && v >= 0 && v <= 23);
+    if (!ascending || !inRange || hs.length === 0) hoursBad.push(e.note_index);
+  }
+  add(hoursBad.length === 0, "Directive hours are unique integers 0-23 in ascending order",
+    hoursBad.length ? `wrong on note_index ${hoursBad.join(", ")}` : "");
+
+  // ---- plan structure (§11.3) ----
+  add(plan.length === H, "hourly_plan has exactly 24 entries", `got ${plan.length}`);
+  const seen = new Set(plan.map((p) => p && p.hour));
+  const uniqueOk = seen.size === H && [...seen].every((h) => Number.isInteger(h) && h >= 0 && h <= 23);
+  add(uniqueOk, "hourly_plan covers hours 0-23 exactly once", uniqueOk ? "" : `${seen.size} distinct hour values`);
+
+  const byHour = new Map(plan.filter((p) => p).map((p) => [p.hour, p]));
+
+  const nonFinite = [];
+  const negative = [];
+  for (const p of plan) {
+    for (const k of ["grid_kwh", "solar_used_kwh", "battery_kwh", "battery_energy_after_kwh"]) {
+      const v = p && p[k];
+      if (typeof v !== "number" || !isFinite(v)) nonFinite.push(`h${p && p.hour}.${k}`);
+      else if (v < 0) negative.push(`h${p.hour}.${k}=${fmt(v, 4)}`);
+    }
+  }
+  add(nonFinite.length === 0, "All numeric plan values are finite", nonFinite.slice(0, 4).join(", "));
+  add(negative.length === 0, "All numeric plan values are non-negative", negative.slice(0, 4).join(", "));
+
+  const actionBad = plan.filter((p) => !ACTIONS.includes(p && p.battery_action));
+  add(actionBad.length === 0, "battery_action is charge, discharge or idle",
+    actionBad.length ? `${actionBad.length} bad value(s)` : "");
+
+  const idleBad = plan.filter((p) => p && p.battery_action === "idle" && Math.abs(p.battery_kwh) > TOL);
+  add(idleBad.length === 0, "battery_kwh is 0 in every idle hour",
+    idleBad.map((p) => `h${p.hour}=${fmt(p.battery_kwh, 4)}`).join(", "));
+
+  // ---- per-hour physics ----
+  const balanceBad = [], solarBad = [], rateBad = [], capBad = [], chgBad = [], disBad = [];
+  const socBad = [], boundBad = [];
+  let energy = Number(b.initial_energy_kwh) || 0;
+  const socSeries = [];
+
+  for (let h = 0; h < H; h++) {
+    const p = byHour.get(h);
+    if (!p) continue;
+    const demand = Number(hours[h].demand_kwh) || 0;
+    const charge = p.battery_action === "charge" ? p.battery_kwh : 0;
+    const discharge = p.battery_action === "discharge" ? p.battery_kwh : 0;
+
+    // §09.5 energy balance
+    const lhs = p.grid_kwh + p.solar_used_kwh + discharge;
+    const rhs = demand + charge;
+    if (Math.abs(lhs - rhs) > TOL) balanceBad.push(`h${h}: ${fmt(lhs, 3)} vs ${fmt(rhs, 3)}`);
+
+    // §09.4 solar usage against EFFECTIVE solar
+    if (p.solar_used_kwh > m.effSolar[h] + TOL) solarBad.push(`h${h}: ${fmt(p.solar_used_kwh, 3)} > ${fmt(m.effSolar[h], 3)}`);
+
+    // §09.3 hourly rate limits
+    if (charge > b.max_charge_kwh_per_hour + TOL) rateBad.push(`h${h}: charge ${fmt(charge, 3)}`);
+    if (discharge > b.max_discharge_kwh_per_hour + TOL) rateBad.push(`h${h}: discharge ${fmt(discharge, 3)}`);
+
+    // directive windows and caps (§05.3)
+    if (m.noCharge[h] && charge > TOL) chgBad.push(`h${h}: ${fmt(charge, 3)}`);
+    if (m.noDischarge[h] && discharge > TOL) disBad.push(`h${h}: ${fmt(discharge, 3)}`);
+    if (isFinite(m.gridCap[h]) && p.grid_kwh > m.gridCap[h] + TOL) capBad.push(`h${h}: ${fmt(p.grid_kwh, 3)} > ${fmt(m.gridCap[h], 3)}`);
+
+    // §09.1 transition, independently replayed
+    energy = energy + charge - discharge;
+    if (Math.abs(energy - p.battery_energy_after_kwh) > TOL) {
+      socBad.push(`h${h}: reported ${fmt(p.battery_energy_after_kwh, 3)}, replayed ${fmt(energy, 3)}`);
+    }
+    // §09.2 bounds, against the active reserve
+    if (p.battery_energy_after_kwh < m.reserve[h] - TOL) boundBad.push(`h${h}: ${fmt(p.battery_energy_after_kwh, 3)} < reserve ${fmt(m.reserve[h], 3)}`);
+    if (p.battery_energy_after_kwh > b.capacity_kwh + TOL) boundBad.push(`h${h}: ${fmt(p.battery_energy_after_kwh, 3)} > capacity`);
+
+    socSeries.push(p.battery_energy_after_kwh);
+  }
+
+  add(balanceBad.length === 0, "Energy balance holds every hour", balanceBad.slice(0, 3).join(" · "));
+  add(solarBad.length === 0, "solar_used never exceeds effective solar", solarBad.slice(0, 3).join(" · "));
+  add(rateBad.length === 0, "Hourly charge and discharge rate limits respected", rateBad.slice(0, 3).join(" · "));
+  add(socBad.length === 0, "battery_energy_after_kwh matches an independent replay", socBad.slice(0, 3).join(" · "));
+  add(boundBad.length === 0, "Battery stays between the active reserve and capacity", boundBad.slice(0, 3).join(" · "));
+  add(chgBad.length === 0, "No charging inside a no_charge_window", chgBad.slice(0, 3).join(" · "));
+  add(disBad.length === 0, "No discharging inside a no_discharge_window", disBad.slice(0, 3).join(" · "));
+  add(capBad.length === 0, "grid_kwh within every max_grid_window cap", capBad.slice(0, 3).join(" · "));
+
+  // §09.6 end-of-day neutrality
+  const last = byHour.get(23);
+  const neutralOk = last && Math.abs(last.battery_energy_after_kwh - b.initial_energy_kwh) <= TOL;
+  add(!!neutralOk, "End-of-day battery energy equals the initial level",
+    last ? `hour 23 = ${fmt(last.battery_energy_after_kwh, 3)}, initial = ${fmt(b.initial_energy_kwh, 3)}` : "hour 23 missing");
+
+  // §11.3 totals recomputed from hourly_plan
+  let grid = 0, cost = 0, peak = 0;
+  for (const p of plan) {
+    if (!p) continue;
+    const t = Number(hours[p.hour] && hours[p.hour].tariff_bdt_per_kwh) || 0;
+    grid += p.grid_kwh; cost += p.grid_kwh * t; peak = Math.max(peak, p.grid_kwh);
+  }
+  add(Math.abs(grid - res.total_grid_kwh) <= TOL, "total_grid_kwh matches the plan",
+    `reported ${fmt(res.total_grid_kwh, 3)}, recomputed ${fmt(grid, 3)}`);
+  add(Math.abs(cost - res.total_cost_bdt) <= TOL, "total_cost_bdt matches the plan",
+    `reported ${fmt(res.total_cost_bdt, 3)}, recomputed ${fmt(cost, 3)}`);
+  add(Math.abs(peak - res.peak_grid_kwh) <= TOL, "peak_grid_kwh matches the plan",
+    `reported ${fmt(res.peak_grid_kwh, 3)}, recomputed ${fmt(peak, 3)}`);
+
+  add(typeof res.plan_summary === "string" && res.plan_summary.length > 0,
+    "plan_summary is a non-empty string");
+
+  return { checks, model: m, recomputed: { grid, cost, peak }, socSeries };
+}
+
+// ---------------------------------------------------------------------------
+// Interpretation comparison (§11.1) — ignores explanation wording
+// ---------------------------------------------------------------------------
+
+function sameAdjustment(a, b) {
+  if (a === null || b === null) return a === b;
+  if (!a || !b) return false;
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    const x = a[k], y = b[k];
+    if (Array.isArray(x) || Array.isArray(y)) {
+      if (!Array.isArray(x) || !Array.isArray(y) || x.length !== y.length) return false;
+      for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+    } else if (typeof x === "number" && typeof y === "number") {
+      if (Math.abs(x - y) > TOL) return false;
+    } else if (x !== y) return false;
+  }
+  return true;
+}
+
+function compareDirectives(actual, expected) {
+  return expected.map((exp, i) => {
+    const got = actual[i];
+    if (!got) return { match: false, why: "missing entry" };
+    if (got.directive_type !== exp.directive_type) {
+      return { match: false, why: `type ${got.directive_type} ≠ ${exp.directive_type}` };
+    }
+    if (got.applies !== exp.applies) return { match: false, why: `applies ${got.applies} ≠ ${exp.applies}` };
+    if (!sameAdjustment(got.structured_adjustment, exp.structured_adjustment)) {
+      return { match: false, why: "adjustment differs" };
+    }
+    return { match: true, why: "" };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Charts — hand-rolled inline SVG, no libraries
+// ---------------------------------------------------------------------------
+
+function energyChart(req, res, model) {
+  const W = 960, Ht = 260, PL = 46, PR = 12, PT = 12, PB = 26;
+  const plan = res.hourly_plan.slice().sort((a, b) => a.hour - b.hour);
+  const maxY = Math.max(
+    ...plan.map((p) => p.grid_kwh + p.solar_used_kwh + (p.battery_action === "discharge" ? p.battery_kwh : 0)),
+    ...req.hours.map((h) => Number(h.demand_kwh) || 0), 1,
+  ) * 1.08;
+
+  const x = (h) => PL + (h + 0.5) * ((W - PL - PR) / H);
+  const bw = ((W - PL - PR) / H) * 0.62;
+  const y = (v) => PT + (Ht - PT - PB) * (1 - v / maxY);
+
+  let bars = "", demand = "";
+  for (const p of plan) {
+    const discharge = p.battery_action === "discharge" ? p.battery_kwh : 0;
+    let base = 0;
+    const seg = (v, color) => {
+      if (v <= 0) return "";
+      const y0 = y(base), y1 = y(base + v);
+      base += v;
+      return `<rect x="${(x(p.hour) - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0.6, y0 - y1).toFixed(1)}" fill="${color}"/>`;
+    };
+    bars += seg(p.solar_used_kwh, "var(--solar-c)");
+    bars += seg(discharge, "var(--batt-c)");
+    bars += seg(p.grid_kwh, "var(--grid-c)");
+  }
+  const dPts = req.hours.map((e) => `${x(e.hour).toFixed(1)},${y(Number(e.demand_kwh) || 0).toFixed(1)}`).join(" ");
+  demand = `<polyline points="${dPts}" fill="none" stroke="var(--demand-c)" stroke-width="1.6" stroke-dasharray="4 3"/>`;
+
+  let axes = "";
+  for (let i = 0; i <= 4; i++) {
+    const v = (maxY / 4) * i, yy = y(v);
+    axes += `<line x1="${PL}" y1="${yy.toFixed(1)}" x2="${W - PR}" y2="${yy.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`;
+    axes += `<text x="${PL - 6}" y="${(yy + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--ink-3)">${fmt(v, 0)}</text>`;
+  }
+  let ticks = "";
+  for (let h = 0; h < H; h += 3) {
+    ticks += `<text x="${x(h).toFixed(1)}" y="${Ht - 8}" text-anchor="middle" font-size="10" fill="var(--ink-3)">${h}</text>`;
+  }
+
+  return `<svg viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Hourly energy sources against demand">
+    ${axes}${bars}${demand}${ticks}
+    <text x="${PL - 6}" y="${PT + 4}" text-anchor="end" font-size="9" fill="var(--ink-3)">kWh</text>
+  </svg>`;
+}
+
+function socChart(req, res, model) {
+  const W = 960, Ht = 200, PL = 46, PR = 12, PT = 12, PB = 26;
+  const b = req.battery;
+  const plan = res.hourly_plan.slice().sort((a, b2) => a.hour - b2.hour);
+  const maxY = Math.max(Number(b.capacity_kwh) || 0, ...plan.map((p) => p.battery_energy_after_kwh), 1) * 1.08;
+  const x = (h) => PL + (h + 0.5) * ((W - PL - PR) / H);
+  const y = (v) => PT + (Ht - PT - PB) * (1 - v / maxY);
+
+  let axes = "";
+  for (let i = 0; i <= 4; i++) {
+    const v = (maxY / 4) * i, yy = y(v);
+    axes += `<line x1="${PL}" y1="${yy.toFixed(1)}" x2="${W - PR}" y2="${yy.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`;
+    axes += `<text x="${PL - 6}" y="${(yy + 3.5).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--ink-3)">${fmt(v, 0)}</text>`;
+  }
+
+  const cap = y(Number(b.capacity_kwh) || 0);
+  const capLine = `<line x1="${PL}" y1="${cap.toFixed(1)}" x2="${W - PR}" y2="${cap.toFixed(1)}" stroke="var(--ink-3)" stroke-width="1.2" stroke-dasharray="6 4"/>`;
+
+  // Reserve floor is a step function: the base minimum, raised in directive hours.
+  let steps = "";
+  const stepW = (W - PL - PR) / H;
+  for (let h = 0; h < H; h++) {
+    const yy = y(model.reserve[h]);
+    steps += `<line x1="${(PL + h * stepW).toFixed(1)}" y1="${yy.toFixed(1)}" x2="${(PL + (h + 1) * stepW).toFixed(1)}" y2="${yy.toFixed(1)}" stroke="var(--bad)" stroke-width="1.4"/>`;
+  }
+
+  const pts = plan.map((p) => `${x(p.hour).toFixed(1)},${y(p.battery_energy_after_kwh).toFixed(1)}`).join(" ");
+  const line = `<polyline points="${pts}" fill="none" stroke="var(--batt-c)" stroke-width="2"/>`;
+  const dots = plan.map((p) => `<circle cx="${x(p.hour).toFixed(1)}" cy="${y(p.battery_energy_after_kwh).toFixed(1)}" r="2.2" fill="var(--batt-c)"/>`).join("");
+
+  const init = y(Number(b.initial_energy_kwh) || 0);
+  const initLine = `<line x1="${PL}" y1="${init.toFixed(1)}" x2="${W - PR}" y2="${init.toFixed(1)}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2 4"/>
+    <text x="${W - PR - 2}" y="${(init - 4).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--accent)">initial ${fmt(b.initial_energy_kwh, 1)} — hour 23 must return here</text>`;
+
+  let ticks = "";
+  for (let h = 0; h < H; h += 3) {
+    ticks += `<text x="${x(h).toFixed(1)}" y="${Ht - 8}" text-anchor="middle" font-size="10" fill="var(--ink-3)">${h}</text>`;
+  }
+
+  return `<svg viewBox="0 0 ${W} ${Ht}" role="img" aria-label="Battery state of charge across 24 hours">
+    ${axes}${capLine}${steps}${initLine}${line}${dots}${ticks}
+  </svg>`;
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+
+function renderResult(req, res, status, ms, upstreamMs) {
+  $("out").hidden = false;
+  lastRequest = req; lastResponse = res;
+
+  $("rawReq").textContent = JSON.stringify(req, null, 2);
+  $("rawRes").textContent = JSON.stringify(res, null, 2);
+
+  const sp = $("statusPill");
+  sp.textContent = `HTTP ${status}`;
+  sp.className = "pill " + (status === 200 ? "ok" : status >= 500 ? "bad" : "warn");
+
+  const tp = $("timePill");
+  tp.textContent = `${ms} ms${upstreamMs ? ` · upstream ${upstreamMs} ms` : ""}`;
+  tp.className = "pill " + (ms <= LATENCY_BUDGET_MS ? "ok" : "bad");
+
+  // A non-200 has no plan to validate: show the body and stop.
+  if (status !== 200 || !res || !Array.isArray(res.hourly_plan)) {
+    $("errBox").hidden = false;
+    $("errBox").innerHTML = `<div class="errbox">${esc(JSON.stringify(res, null, 2))}</div>`;
+    $("verdict").innerHTML = "";
+    $("dirBody").innerHTML = "";
+    $("planBody").innerHTML = "";
+    $("checks").innerHTML = "";
+    $("chartEnergy").innerHTML = "";
+    $("chartSoc").innerHTML = "";
+    $("dirPill").className = "pill idle"; $("dirPill").textContent = "—";
+    $("validPill").className = "pill idle"; $("validPill").textContent = "no plan returned";
+    $("replayNote").textContent = "The service did not return a plan, so there is nothing to replay.";
+    return;
+  }
+  $("errBox").hidden = true;
+
+  // Ground truth wins when a public case is loaded — that is what the judge
+  // replays against (§11.2), not the interpretation we reported ourselves.
+  const expected = activeSample ? activeSample.expected_output.directive_interpretation : null;
+  const truth = expected || res.directive_interpretation;
+  const { checks, model, recomputed } = replay(req, res, truth);
+
+  $("replayNote").textContent = expected
+    ? "Replayed against the sample pack's ground-truth directives, the way the judge does — not against the interpretation this service reported."
+    : "Replayed against the directives this service reported. Load a public case to replay against ground truth instead.";
+
+  // ---- verdict tiles ----
+  const failed = checks.filter((c) => !c.ok);
+  const refCost = activeSample ? activeSample.expected_output.total_cost_bdt : null;
+  const ratio = refCost !== null && res.total_cost_bdt > TOL
+    ? Math.min(1, refCost / res.total_cost_bdt)
+    : (refCost !== null && Math.abs(refCost) <= TOL && Math.abs(res.total_cost_bdt) <= TOL ? 1 : null);
+
+  const tiles = [
+    { k: "validity", v: failed.length === 0 ? "VALID" : `${failed.length} violation${failed.length > 1 ? "s" : ""}`,
+      d: `${checks.length - failed.length}/${checks.length} checks`, cls: failed.length === 0 ? "ok" : "bad" },
+    { k: "total_cost_bdt", v: fmt(res.total_cost_bdt, 2),
+      d: refCost !== null ? `reference ${fmt(refCost, 2)} · Δ ${fmt(Math.abs(res.total_cost_bdt - refCost), 4)}` : "no reference loaded" },
+    { k: "total_grid_kwh", v: fmt(res.total_grid_kwh, 2), d: `peak ${fmt(res.peak_grid_kwh, 2)} kWh` },
+  ];
+  if (ratio !== null) {
+    tiles.push({ k: "quality_ratio", v: ratio.toFixed(4), d: "min(1, optimal / ours)", cls: ratio >= 0.9999 ? "ok" : "warn" });
+  }
+  $("verdict").innerHTML = tiles.map((t) => `
+    <div class="metric">
+      <div class="k">${esc(t.k)}</div>
+      <div class="v" ${t.cls === "ok" ? 'style="color:var(--ok)"' : t.cls === "bad" ? 'style="color:var(--bad)"' : t.cls === "warn" ? 'style="color:var(--warn)"' : ""}>${esc(t.v)}</div>
+      <div class="d">${esc(t.d)}</div>
+    </div>`).join("");
+
+  // ---- interpretation table ----
+  const di = res.directive_interpretation || [];
+  const cmp = expected ? compareDirectives(di, expected) : null;
+  $("dirBody").innerHTML = di.map((e, i) => {
+    const c = cmp && cmp[i];
+    const expText = expected && expected[i]
+      ? `${expected[i].directive_type}${expected[i].structured_adjustment ? " " + JSON.stringify(expected[i].structured_adjustment) : ""}`
+      : "—";
+    return `<tr>
+      <td class="l num">${e.note_index}</td>
+      <td class="l" style="white-space:normal; max-width:300px">${esc(req.operator_notes[i] ?? "")}
+        <div class="muted" style="font-size:11.5px; margin-top:2px">${esc(e.explanation ?? "")}</div></td>
+      <td class="l num">${String(e.applies)}</td>
+      <td class="l num">${esc(e.directive_type)}</td>
+      <td class="l num" style="white-space:normal">${esc(JSON.stringify(e.structured_adjustment))}</td>
+      <td class="l num" style="white-space:normal">${c ? (c.match
+        ? '<span class="pill ok">match</span>'
+        : `<span class="pill bad">differs</span><div class="muted" style="font-size:11.5px">${esc(c.why)}<br>${esc(expText)}</div>`) : "—"}</td>
+    </tr>`;
+  }).join("");
+
+  const dp = $("dirPill");
+  if (cmp) {
+    const n = cmp.filter((c) => c.match).length;
+    dp.textContent = `${n}/${cmp.length} match ground truth`;
+    dp.className = "pill " + (n === cmp.length ? "ok" : "bad");
+  } else {
+    dp.textContent = `${di.length} entr${di.length === 1 ? "y" : "ies"}`;
+    dp.className = "pill idle";
+  }
+
+  // ---- checks ----
+  $("checks").innerHTML = checks.map((c) => `
+    <li class="${c.ok ? "pass" : "fail"}">
+      <span class="mark">${c.ok ? "PASS" : "FAIL"}</span>
+      <span class="txt">${esc(c.label)}${c.why ? `<div class="why">${esc(c.why)}</div>` : ""}</span>
+    </li>`).join("");
+  const vp = $("validPill");
+  vp.textContent = failed.length === 0 ? "zero violations" : `${failed.length} failed`;
+  vp.className = "pill " + (failed.length === 0 ? "ok" : "bad");
+
+  // ---- plan table ----
+  const sorted = res.hourly_plan.slice().sort((a, b2) => a.hour - b2.hour);
+  $("planBody").innerHTML = sorted.map((p) => {
+    const hh = req.hours[p.hour] || {};
+    const tariff = Number(hh.tariff_bdt_per_kwh) || 0;
+    const reduced = model.effSolar[p.hour] < (Number(hh.solar_kwh) || 0) - 1e-9;
+    const actionCls = p.battery_action === "charge" ? "warn" : p.battery_action === "discharge" ? "ok" : "idle";
+    return `<tr>
+      <td class="l num">${p.hour}</td>
+      <td class="num">${fmt(hh.demand_kwh, 2)}</td>
+      <td class="num">${fmt(tariff, 2)}</td>
+      <td class="num" ${reduced ? 'style="color:var(--warn)"' : ""}>${fmt(model.effSolar[p.hour], 2)}</td>
+      <td class="num">${fmt(p.grid_kwh, 2)}</td>
+      <td class="num">${fmt(p.solar_used_kwh, 2)}</td>
+      <td class="l"><span class="pill ${actionCls}">${esc(p.battery_action)}</span></td>
+      <td class="num">${fmt(p.battery_kwh, 2)}</td>
+      <td class="num">${fmt(p.battery_energy_after_kwh, 2)}</td>
+      <td class="num">${fmt(p.grid_kwh * tariff, 2)}</td>
+    </tr>`;
+  }).join("");
+
+  // ---- charts ----
+  $("chartEnergy").innerHTML = energyChart(req, res, model);
+  $("chartSoc").innerHTML = socChart(req, res, model);
+}
+
+// ---------------------------------------------------------------------------
+// Network
+// ---------------------------------------------------------------------------
+
+const base = () => encodeURIComponent($("apiBase").value.trim() || "http://localhost:3000");
+
+async function post(bodyText) {
+  const t0 = performance.now();
+  const r = await fetch(`/api/optimize-energy?base=${base()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: bodyText,
+  });
+  const ms = Math.round(performance.now() - t0);
+  const upstream = r.headers.get("X-Upstream-Ms");
+  const text = await r.text();
+  let json;
+  try { json = JSON.parse(text); } catch { json = { error: "non_json_response", body: text.slice(0, 2000) }; }
+  return { status: r.status, json, ms, upstream };
+}
+
+async function send() {
+  const req = readScenario();
+  preflight();
+  $("btnSend").disabled = true;
+  $("btnSend").textContent = "Sending…";
+  try {
+    const { status, json, ms, upstream } = await post(JSON.stringify(req));
+    renderResult(req, json, status, ms, upstream);
+  } catch (err) {
+    renderResult(req, { error: "request_failed", message: String(err) }, 0, 0, null);
+  } finally {
+    $("btnSend").disabled = false;
+    $("btnSend").textContent = "Send request";
+  }
+}
+
+/** Fault injection: the body is passed through the proxy verbatim. */
+async function sendRaw(bodyText, label) {
+  const btns = document.querySelectorAll("button");
+  btns.forEach((b) => (b.disabled = true));
+  try {
+    const { status, json, ms, upstream } = await post(bodyText);
+    const shown = { __fault_injection: label, __body_sent: bodyText.slice(0, 400) };
+    renderResult(readScenario(), Object.assign(shown, json), status, ms, upstream);
+  } finally {
+    btns.forEach((b) => (b.disabled = false));
+  }
+}
+
+async function checkHealth() {
+  const pill = $("healthPill");
+  pill.className = "pill idle"; pill.textContent = "checking…";
+  const t0 = performance.now();
+  try {
+    const r = await fetch(`/api/health?base=${base()}`);
+    const ms = Math.round(performance.now() - t0);
+    const body = await r.json().catch(() => ({}));
+    const ok = r.status === 200 && body && body.status === "ok";
+    pill.className = "pill " + (ok ? "ok" : "bad");
+    // textContent does not interpret markup, so this must NOT be esc()aped.
+    pill.textContent = ok
+      ? `ok · ${ms} ms`
+      : body && body.error === "upstream_unreachable"
+        ? `API not reachable at ${$("apiBase").value.trim()}`
+        : `HTTP ${r.status} · ${JSON.stringify(body).slice(0, 70)}`;
+    pill.title = JSON.stringify(body);
+  } catch (err) {
+    pill.className = "pill bad";
+    pill.textContent = "unreachable";
+  }
+}
+
+async function measureLatency() {
+  const runs = Math.max(1, Math.min(50, Number($("latRuns").value) || 10));
+  const req = JSON.stringify(readScenario());
+  const btn = $("btnLatency");
+  btn.disabled = true;
+  const times = [];
+  let failures = 0;
+  for (let i = 0; i < runs; i++) {
+    btn.textContent = `${i + 1}/${runs}…`;
+    try {
+      const { status, ms } = await post(req);
+      if (status !== 200) failures++;
+      times.push(ms);
+    } catch { failures++; }
+  }
+  times.sort((a, b) => a - b);
+  const pick = (q) => times.length ? times[Math.min(times.length - 1, Math.ceil(q * times.length) - 1)] : 0;
+  const p95 = pick(0.95);
+  const mean = times.reduce((a, b) => a + b, 0) / (times.length || 1);
+
+  $("latMetrics").hidden = false;
+  $("latMetrics").innerHTML = [
+    { k: "p95", v: `${p95} ms`, d: `budget ${LATENCY_BUDGET_MS} ms`, cls: p95 <= LATENCY_BUDGET_MS ? "ok" : "bad" },
+    { k: "median", v: `${pick(0.5)} ms`, d: `mean ${Math.round(mean)} ms` },
+    { k: "min / max", v: `${times[0] ?? 0} / ${times[times.length - 1] ?? 0} ms`, d: `${runs} calls` },
+    { k: "non-200", v: String(failures), d: failures === 0 ? "all requests succeeded" : "investigate", cls: failures === 0 ? "ok" : "bad" },
+  ].map((t) => `
+    <div class="metric">
+      <div class="k">${esc(t.k)}</div>
+      <div class="v" ${t.cls === "ok" ? 'style="color:var(--ok)"' : t.cls === "bad" ? 'style="color:var(--bad)"' : ""}>${esc(t.v)}</div>
+      <div class="d">${esc(t.d)}</div>
+    </div>`).join("");
+
+  btn.disabled = false;
+  btn.textContent = "Measure p95";
+}
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+
+async function boot() {
+  try {
+    const cfg = await (await fetch("/api/config")).json();
+    $("apiBase").value = cfg.api_base || "http://localhost:3000";
+  } catch {
+    $("apiBase").value = "http://localhost:3000";
+  }
+
+  try {
+    const pack = await (await fetch("/api/samples")).json();
+    SAMPLES = Array.isArray(pack.cases) ? pack.cases : [];
+  } catch {
+    SAMPLES = [];
+  }
+
+  const host = $("samples");
+  if (SAMPLES.length === 0) {
+    host.innerHTML = '<span class="muted">Sample pack unavailable — edit the scenario by hand.</span>';
+    loadScenario({ scenario_id: "LOCAL-01", operator_notes: ["Solar output will drop to about 20% from 1 PM to 3 PM."], hours: blankHours(), battery: { capacity_kwh: 200, initial_energy_kwh: 100, minimum_energy_kwh: 40, max_charge_kwh_per_hour: 50, max_discharge_kwh_per_hour: 50 } });
+  } else {
+    host.innerHTML = SAMPLES.map((c, i) => `<button data-i="${i}" title="${esc(c.label)}">${esc(c.id)}</button>`).join("") +
+      `<button id="btnBlank" title="Start from a neutral 24-hour scenario">blank</button>`;
+    host.querySelectorAll("button[data-i]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        activeSample = SAMPLES[Number(btn.dataset.i)];
+        host.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        loadScenario(activeSample.input);
+      });
+    });
+    $("btnBlank").addEventListener("click", () => {
+      activeSample = null;
+      host.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      $("btnBlank").classList.add("active");
+      loadScenario({ scenario_id: "LOCAL-01", operator_notes: ["Keep at least 100 kWh in reserve from 6 PM until 9 PM."], hours: blankHours(), battery: { capacity_kwh: 200, initial_energy_kwh: 100, minimum_energy_kwh: 40, max_charge_kwh_per_hour: 50, max_discharge_kwh_per_hour: 50 } });
+    });
+    // Start on the first case so the page is useful immediately.
+    host.querySelector("button[data-i]").click();
+  }
+
+  checkHealth();
+}
+
+$("btnSend").addEventListener("click", send);
+$("btnHealth").addEventListener("click", checkHealth);
+$("btnLatency").addEventListener("click", measureLatency);
+$("btnMalformed").addEventListener("click", () => sendRaw('{"scenario_id": "BROKEN", oops', "malformed JSON body — expect 400"));
+$("btnTrim").addEventListener("click", () => {
+  const r = readScenario();
+  r.hours = r.hours.slice(0, 23);
+  sendRaw(JSON.stringify(r), "23 hour entries — expect 400");
+});
+$("btnEmptyNotes").addEventListener("click", () => {
+  const r = readScenario();
+  r.operator_notes = [];
+  sendRaw(JSON.stringify(r), "empty operator_notes — expect 400");
+});
+$("btnToggleHours").addEventListener("click", () => {
+  const w = $("hoursWrap");
+  w.hidden = !w.hidden;
+  $("btnToggleHours").textContent = w.hidden ? "Show 24-hour grid" : "Hide 24-hour grid";
+});
+$("btnCopyReq").addEventListener("click", () => navigator.clipboard.writeText(JSON.stringify(lastRequest, null, 2)));
+$("btnCopyRes").addEventListener("click", () => navigator.clipboard.writeText(JSON.stringify(lastResponse, null, 2)));
+
+// Hand-editing any field means we are no longer on a known public case, so the
+// ground-truth comparison must stop claiming otherwise.
+for (const id of ["scenarioId", "notes", "bCap", "bInit", "bMin", "bChg", "bDis"]) {
+  $(id).addEventListener("input", () => { activeSample = null; document.querySelectorAll("#samples button").forEach((b) => b.classList.remove("active")); preflight(); });
+}
+$("hoursBody").addEventListener("input", () => { activeSample = null; document.querySelectorAll("#samples button").forEach((b) => b.classList.remove("active")); preflight(); });
+
+boot();
+</script>
+</body>
+</html>
