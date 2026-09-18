@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      # The Dockerfile COPYs web/, so a console-only change still changes the
+      # image. Without this the published tag silently drifts from main.
+      - "web/**"
       - "package.json"
       - "bun.lock"
       - "Dockerfile"
