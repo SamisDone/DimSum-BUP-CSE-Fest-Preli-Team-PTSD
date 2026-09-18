@@ -39,11 +39,35 @@ function baselinePlan(hours: Hour[], battery: Battery): PlanHour[] {
   });
 }
 
+function summarize(
+  usedBaseline: boolean,
+  directives: Directive[],
+  total_cost_bdt: number,
+  total_grid_kwh: number,
+  peak_grid_kwh: number,
+): string {
+  const applied = directives.filter((d) => d.applies).length;
+  const directiveText =
+    applied === 0
+      ? "no operator directives applied"
+      : `${applied} operator directive${applied === 1 ? "" : "s"} applied`;
+  const source = usedBaseline
+    ? "baseline plan (solar first, battery idle, grid covers the rest) — the optimizer returned no feasible plan or failed validation"
+    : "optimized plan";
+  return (
+    `${source} with ${directiveText}: ` +
+    `${total_grid_kwh.toFixed(2)} kWh from the grid, ` +
+    `peak ${peak_grid_kwh.toFixed(2)} kWh/hour, ` +
+    `total cost ${total_cost_bdt.toFixed(2)} BDT.`
+  );
+}
+
 function assembleResponse(
   scenario_id: string,
   hours: Hour[],
   directives: Directive[],
   plan: PlanHour[],
+  usedBaseline: boolean,
 ): OptimizeEnergyResponse {
   const tariffByHour = new Map(hours.map((h) => [h.hour, h.tariff_bdt_per_kwh]));
   const total_grid_kwh = plan.reduce((sum, p) => sum + p.grid_kwh, 0);
@@ -59,7 +83,7 @@ function assembleResponse(
     total_grid_kwh,
     total_cost_bdt,
     peak_grid_kwh,
-    plan_summary: "stub response — optimizer not yet implemented (baseline: solar first, grid covers rest)",
+    plan_summary: summarize(usedBaseline, directives, total_cost_bdt, total_grid_kwh, peak_grid_kwh),
   };
 }
 
@@ -114,16 +138,24 @@ const server = Bun.serve({
         const directives = guard(raw, operator_notes.length, battery);
 
         let plan = solve(hours, battery, directives);
+        let usedBaseline = plan === null;
         if (plan === null) {
           plan = baselinePlan(hours, battery);
         } else {
           const violations = replay(hours, battery, directives, plan);
           if (violations.length > 0) {
             plan = baselinePlan(hours, battery);
+            usedBaseline = true;
           }
         }
 
-        const response: OptimizeEnergyResponse = assembleResponse(scenario_id, hours, directives, plan);
+        const response: OptimizeEnergyResponse = assembleResponse(
+          scenario_id,
+          hours,
+          directives,
+          plan,
+          usedBaseline,
+        );
         return Response.json(response);
       },
     },
