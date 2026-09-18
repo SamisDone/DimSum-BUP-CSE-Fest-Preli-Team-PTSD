@@ -121,18 +121,27 @@ export function replay(hours: Hour[], battery: Battery,
 
 ### File ownership map
 
+Source lives under `src/`, organized by pipeline stage rather than as flat
+files at the repo root — one directory per stage, matching the six-box
+architecture in §1:
+
 ```
-index.ts          A     Bun.serve, routes, wiring, error handlers
-types.ts          A     shared types above, frozen
-schemas.ts        A     zod request/response schemas
-interpreter.ts    B     prompt, model call, JSON parse, cache, fallback extractor
-guardrails.ts     B     guard() — validate and repair
-optimizer.ts      C     solve() — LP model, netting, rounding
-validator.ts      D     replay() — the Final Validator stage
-run-public.ts     D     harness that runs all 10 public cases
-README.md         D
-Dockerfile        A
+src/index.ts                    A     Bun.serve, routes, wiring, error handlers
+src/types.ts                    A     shared types above, frozen
+src/schemas.ts                  A     zod request/response schemas
+src/interpreter/interpreter.ts  B     prompt, model call, JSON parse, cache, fallback extractor
+src/interpreter/guardrails.ts   B     guard() — validate and repair
+src/optimizer/optimizer.ts      C     solve() — LP model, netting, rounding
+src/optimizer/optimizer.test.ts C     proof suite (not shipped in the Docker image — see .dockerignore)
+src/validator/validator.ts      D     replay() — the Final Validator stage
+run-public.ts                   D     harness that runs all 10 public cases
+README.md                       D
+Dockerfile                      A
 ```
+
+Dev/debug scripts (`eval-notes.ts`, `check-key.ts`, `verify.ts`) stay at the
+repo root — they're tooling, not pipeline source, and aren't copied into the
+Docker image either way.
 
 ---
 
