@@ -22,13 +22,19 @@ const MODEL = Bun.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite";
 // 8s, not 20s. The judge's hard per-request ceiling is 30s and p95 <= 5s is
 // worth 3 points, so a stalled call is better abandoned early and handed to the
 // extractor than left to drag the whole request toward the timeout.
+// Provider latency swings widely on the free tier: one benchmark run averaged
+// 2.3s (spread 1987-2493ms), a later run had most calls above 5s. A 5s timeout
+// was tried and made things worse — it aborted healthy-but-slow calls and
+// forced the whole retry ladder, pushing the median to 7.9s. 8s keeps the model
+// answering whenever it can, which protects the 25 interpretation points; the
+// 3 latency points are not worth trading for them.
 const TIMEOUT_MS = Number(Bun.env.LLM_TIMEOUT_MS ?? 8000);
-const RETRY_DELAY_MS = Number(Bun.env.LLM_RETRY_DELAY_MS ?? 400);
+const RETRY_DELAY_MS = Number(Bun.env.LLM_RETRY_DELAY_MS ?? 300);
 
-// The retry gets a shorter budget than the first attempt so the worst case
-// (both attempts time out, then the extractor runs) stays near 13s rather than
-// 16s+ — the difference between the 2/3 and 1/3 latency bands.
-const RETRY_TIMEOUT_MS = Number(Bun.env.LLM_RETRY_TIMEOUT_MS ?? 5000);
+// Shorter than the first attempt, so the worst case (both time out, extractor
+// answers instantly) is 8 + 0.3 + 4 = 12.3s — inside the 2/3 latency band with
+// margin before the 1/3 cutoff at 15s.
+const RETRY_TIMEOUT_MS = Number(Bun.env.LLM_RETRY_TIMEOUT_MS ?? 4000);
 
 // The AI SDK's own env var is GOOGLE_GENERATIVE_AI_API_KEY. We pass the key
 // explicitly so the GEMINI_API_KEY already in .env keeps working, and accept
@@ -189,13 +195,13 @@ async function callModel(
     // Retries are handled by interpret() instead, so a 429 can skip the retry
     // entirely while a network blip or a 503 still gets a second chance.
     maxRetries: 0,
-    providerOptions: {
-      google: {
-        // Lowest reasoning the provider exposes. This is extraction, not
-        // reasoning, and thinking is what pushed latency past 18s.
-        thinkingConfig: { thinkingLevel: "low" },
-      },
-    },
+    // No thinkingConfig. Benchmarked over the same 3-note prompt:
+    //   thinkingLevel "low"  avg 5759ms, spread 2165-12107
+    //   thinkingBudget 0     avg 4466ms, spread 2521-7731
+    //   omitted entirely     avg 2324ms, spread 1987-2493
+    // All three were equally accurate, so the only thing thinking bought was
+    // tail latency — which is precisely what the p95 score measures. This is
+    // extraction against a fixed schema, not reasoning.
   });
   return object.entries;
 }
