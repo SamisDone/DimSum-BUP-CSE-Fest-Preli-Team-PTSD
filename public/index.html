@@ -890,7 +890,17 @@ function renderResult(req, res, status, ms, upstreamMs) {
   // A non-200 has no plan to validate: show the body and stop.
   if (status !== 200 || !res || !Array.isArray(res.hourly_plan)) {
     $("errBox").hidden = false;
-    $("errBox").innerHTML = `<div class="errbox">${esc(JSON.stringify(res, null, 2))}</div>`;
+    let hint = "";
+    if (res && res.error === "upstream_unreachable") {
+      hint = `<div class="warnbox" style="margin:0 0 10px">The console is running, but nothing answered at that address. ` +
+        `Start the API with <b>bun run start</b>. If it is already running and still unreachable, ` +
+        `it may be bound to the wrong interface — a shell that sets HOSTNAME (Git Bash does) makes the service ` +
+        `bind to the machine name instead of 0.0.0.0. Start it with <b>HOSTNAME=0.0.0.0 bun run start</b>.</div>`;
+    } else if (status === 0) {
+      hint = `<div class="warnbox" style="margin:0 0 10px">The request never left the browser — the console server itself is down. ` +
+        `Restart it with <b>bun run frontend.ts</b> and reload.</div>`;
+    }
+    $("errBox").innerHTML = hint + `<div class="errbox">${esc(JSON.stringify(res, null, 2))}</div>`;
     $("verdict").innerHTML = "";
     $("dirBody").innerHTML = "";
     $("planBody").innerHTML = "";
@@ -1120,6 +1130,18 @@ async function measureLatency() {
 // ---------------------------------------------------------------------------
 
 async function boot() {
+  // Opened straight off disk, every /api/* call would fail with an opaque
+  // "Failed to fetch". Say so plainly instead of looking broken.
+  if (location.protocol === "file:") {
+    document.body.innerHTML =
+      '<div class="wrap" style="padding-top:40px">' +
+      "<h1>Open this page through the console server</h1>" +
+      '<p class="note">This file was opened directly from disk, so it cannot reach the API. ' +
+      "Start the console and use the URL it prints:</p>" +
+      '<pre>bun run frontend.ts\n\n# then open\nhttp://localhost:3500</pre></div>';
+    return;
+  }
+
   try {
     const cfg = await (await fetch("/api/config")).json();
     $("apiBase").value = cfg.api_base || "http://localhost:3000";
