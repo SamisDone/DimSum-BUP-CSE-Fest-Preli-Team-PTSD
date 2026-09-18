@@ -303,14 +303,29 @@ function parseClock(token: string, meridiem?: string): Clock | null {
   return { hour: n, absolute: colon !== null };
 }
 
-/** Start-inclusive, end-exclusive. "until midnight" closes the day at 24. */
+const ALL_DAY = Array.from({ length: 24 }, (_, h) => h);
+
+/**
+ * Start-inclusive, end-exclusive. "until midnight" closes the day at 24, and a
+ * window whose end precedes its start wraps over midnight ("11 PM until 2 AM"
+ * is [23, 0, 1]; guard() sorts it ascending as the spec requires).
+ */
 function spanHours(start: number, end: number): number[] | null {
+  if (start < 0 || start > 23 || end < 0 || end > 24) return null;
   const e = end === 0 ? 24 : end;
-  if (e <= start || start < 0 || start > 23) return null;
   const out: number[] = [];
-  for (let h = start; h < e && h < 24; h++) out.push(h);
+  if (e > start) {
+    for (let h = start; h < e && h < 24; h++) out.push(h);
+  } else {
+    for (let h = start; h < 24; h++) out.push(h);
+    for (let h = 0; h < e; h++) out.push(h);
+  }
   return out.length ? out : null;
 }
+
+/** Does the note reference a time at all? Used to tell "all day" from "unparseable". */
+const TIME_HINT = new RegExp(`\\b(?:${TOK})\\b|\\b(?:${MER})\\b|\\bhours?\\b|:\\d{2}`, "i");
+const ALL_DAY_PHRASE = /\b(all day|entire day|whole day|throughout the day|24 hours|all hours|at all times)\b/i;
 
 function extractHours(note: string, solarContext: boolean): number[] | null {
   const dur = DURATION_RE.exec(note);
@@ -327,7 +342,14 @@ function extractHours(note: string, solarContext: boolean): number[] | null {
   }
 
   const m = RANGE_RE.exec(note);
-  if (!m) return null;
+  if (!m) {
+    // A directive with no window at all applies to the whole day — "Do not
+    // charge the battery." is a 24-hour no-charge rule. But if the note DOES
+    // mention a time we simply failed to parse, guessing all day would invent a
+    // hard constraint, so that stays null and becomes a no_op.
+    if (ALL_DAY_PHRASE.test(note) || !TIME_HINT.test(note)) return [...ALL_DAY];
+    return null;
+  }
   const startMer = m[2];
   const endMer = m[4];
   // "1-3 PM": the trailing meridiem governs both ends.
@@ -391,23 +413,35 @@ function round4(v: number): number {
   return Math.round(v * 1e4) / 1e4;
 }
 
+/**
+ * An absolute kWh value.
+ *
+ * An explicit quantity wins over a percentage. "must not exceed 190 kWh ... a
+ * 20% cut from the feeder rating" states 190; reading the 20% as a share of
+ * battery capacity would produce 40, which is both wrong and a far tighter
+ * constraint. A percentage is only converted when the note ties it to the
+ * battery, which is the one case where capacity is the right denominator.
+ */
 function extractKwh(note: string, battery: Battery): number | null {
   const n = note.toLowerCase();
 
-  const pct = /(\d+(?:\.\d+)?)\s*(?:%|percent)/.exec(n);
-  if (pct) {
-    const v = (Number(pct[1]) / 100) * battery.capacity_kwh;
-    return Number.isFinite(v) ? v : null;
-  }
-  // "a third of the battery capacity"
-  for (const [word, value] of Object.entries(FRACTION)) {
-    if (new RegExp(`\\b(?:one[- ])?${word}\\b.*\\b(?:capacity|battery)\\b`).test(n))
-      return value * battery.capacity_kwh;
-  }
   const num = /(\d+(?:\.\d+)?)\s*(?:kwh|kw-h|units?)\b/.exec(n);
   if (num) {
     const v = Number(num[1]);
-    return Number.isFinite(v) ? v : null;
+    if (Number.isFinite(v)) return round4(v);
+  }
+
+  const ofCapacity = /\b(?:capacity|nameplate|battery|stored|storage)\b/.test(n);
+  if (ofCapacity) {
+    const pct = /(\d+(?:\.\d+)?)\s*(?:%|percent)/.exec(n);
+    if (pct) {
+      const v = (Number(pct[1]) / 100) * battery.capacity_kwh;
+      if (Number.isFinite(v)) return round4(v);
+    }
+    // "a third of the battery capacity"
+    for (const [word, value] of Object.entries(FRACTION)) {
+      if (new RegExp(`\\b(?:one[- ])?${word}\\b`).test(n)) return round4(value * battery.capacity_kwh);
+    }
   }
   return null;
 }

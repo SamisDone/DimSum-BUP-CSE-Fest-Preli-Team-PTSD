@@ -157,6 +157,8 @@ function diff(got: Directive, want: Directive): string | null {
 
 // ---- 3. extractor vs paraphrases it was never tuned on ---------------------
 
+const ALL_DAY = Array.from({ length: 24 }, (_, h) => h);
+
 const TRIALS: [string, string, number[] | null, number | null][] = [
   // Problem Statement §11.4 publishes these three as examples of hidden wording.
   ["PV production will drop to about 20% between 13:00 and 15:00.", "solar_reduction", [13, 14], 0.2],
@@ -173,6 +175,26 @@ const TRIALS: [string, string, number[] | null, number | null][] = [
   ["The IT department will migrate the campus email server overnight.", "no_op", null, null],
   ["The sports office moved next month's registration deadline.", "no_op", null, null],
   ["The cafeteria menu changes tomorrow.", "no_op", null, null],
+
+  // Windows that wrap past midnight. guard() sorts them ascending, as PS §05.1
+  // requires, so 11 PM-2 AM is [0, 1, 23] rather than [23, 0, 1].
+  ["Battery must not discharge from 11 PM until 2 AM.", "no_discharge_window", [0, 1, 23], null],
+  ["Charging is unavailable from 10 PM until 1 AM.", "no_charge_window", [0, 22, 23], null],
+  ["Do not discharge between 23:00 and 01:00.", "no_discharge_window", [0, 23], null],
+
+  // A directive with no window at all covers the whole day.
+  ["Do not charge the battery.", "no_charge_window", ALL_DAY, null],
+  ["Grid import capped at 150 kWh all day.", "max_grid_window", ALL_DAY, 150],
+  ["Keep at least 50% of the battery capacity stored at all times.", "minimum_battery_reserve", ALL_DAY, 100],
+
+  // An explicit quantity beats an unrelated percentage in the same sentence.
+  ["Grid import must not exceed 190 kWh from 7 PM until 10 PM, a 20% cut from the normal feeder rating.", "max_grid_window", [19, 20, 21], 190],
+  ["Keep at least 90 kWh in the battery from 6 PM until 10 PM; that is 45% of nameplate.", "minimum_battery_reserve", [18, 19, 20, 21], 90],
+
+  // A window with no stated magnitude is not a directive — inventing a factor
+  // is exactly what PS §05.1 forbids.
+  ["Panel cleaning from 1 PM to 3 PM.", "no_op", null, null],
+  ["Solar output is unaffected today.", "no_op", null, null],
 ];
 
 {
