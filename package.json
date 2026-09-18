@@ -8,7 +8,8 @@
     "start": "bun run index.ts",
     "dev": "bun --watch index.ts",
     "eval:notes": "bun run eval-notes.ts",
-    "check:key": "bun run check-key.ts"
+    "check:key": "bun run check-key.ts",
+    "verify": "bun run verify.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
@@ -17,7 +18,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@google/genai": "^2.23.0",
+    "@ai-sdk/google": "^4.0.75",
+    "ai": "^7.0.106",
     "highs": "^1.15.3",
     "zod": "^4.6.5"
   }
