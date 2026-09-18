@@ -1,0 +1,17 @@
+{
+  "name": "gridwise-energy-optimizer",
+  "description": "GridWise - LLM-assisted campus energy optimization API (BUP CSE Fest 2026 preliminary)",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run index.ts",
+    "dev": "bun --watch index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

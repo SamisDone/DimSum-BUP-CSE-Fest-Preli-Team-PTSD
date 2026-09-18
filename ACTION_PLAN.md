@@ -32,7 +32,7 @@ Use these six stage names verbatim in the README and the video — architecture 
 
 The judge scores the **whole pipeline**, not the cost number. 50 of 100 points are interpretation (25) + directive application (25). Only 10 points are cost. A cheap plan built on a misread note scores **zero** for that case: directive application, optimization credit, and often validity all collapse together.
 
-**Verified finding:** a plain LP with the constraints in §7 reproduces the organizer's `total_cost_bdt` **exactly on all 10 public cases** (diff 0.000 on every one). Optimization Quality (10 pts) is effectively free *provided the directives are right*. This is why B's role is weighted as heavily as C's.
+**Verified finding:** a plain LP with the constraints in C's brief reproduces the organizer's `total_cost_bdt` **exactly on all 10 public cases** (diff 0.000 on every one). Optimization Quality (10 pts) is effectively free *provided the directives are right*. This is why B's role is weighted as heavily as C's.
 
 ## 2. Where the marks are
 
@@ -60,47 +60,50 @@ Consequence for **C**: if a hidden scenario has solar plus battery covering all 
 
 **This is the single most important 10 minutes of the night.** Once these signatures are frozen, all four members write against stubs and never block each other.
 
-```python
-# types.py — owned by A, frozen at T+0:15, changed only by group agreement
+```ts
+// types.ts — owned by A, frozen at T+0:15, changed only by group agreement
 
-Directive = {
-    "note_index": int,            # 0-based, ascending, one per note
-    "applies": bool,              # False only for no_op
-    "directive_type": str,        # one of the 6 allowed values
-    "structured_adjustment": dict | None,   # None only for no_op
-    "explanation": str,
+export type DirectiveType =
+  | "solar_reduction" | "minimum_battery_reserve" | "no_charge_window"
+  | "no_discharge_window" | "max_grid_window" | "no_op";
+
+export interface Directive {
+  note_index: number;                  // 0-based, ascending, one per note
+  applies: boolean;                    // false only for no_op
+  directive_type: DirectiveType;
+  structured_adjustment: Record<string, unknown> | null;  // null only for no_op
+  explanation: string;
 }
 
-PlanHour = {
-    "hour": int, "grid_kwh": float, "solar_used_kwh": float,
-    "battery_action": str,        # "charge" | "discharge" | "idle"
-    "battery_kwh": float, "battery_energy_after_kwh": float,
+export interface PlanHour {
+  hour: number;
+  grid_kwh: number;
+  solar_used_kwh: number;
+  battery_action: "charge" | "discharge" | "idle";
+  battery_kwh: number;
+  battery_energy_after_kwh: number;
 }
 ```
 
-```python
-# The four module boundaries. Each is owned by exactly one person.
+```ts
+// The four module boundaries. Each is owned by exactly one person.
 
-# B owns both of these:
-def interpret(notes: list[str], battery: dict) -> list[dict]:
-    """Raw, UNTRUSTED model output. May be malformed. Never called directly by app."""
+// B owns both of these:
+//   Raw, UNTRUSTED model output. May be malformed. Never called directly by index.ts.
+export function interpret(notes: string[], battery: Battery): Promise<unknown[]>;
+//   Always returns exactly nNotes valid Directives. Never throws.
+export function guard(raw: unknown[], nNotes: number, battery: Battery): Directive[];
 
-def guard(raw: list[dict], n_notes: int, battery: dict) -> list[Directive]:
-    """Always returns exactly n_notes valid Directives. Never raises."""
+// C owns this — returns a valid 24-entry plan, or null if infeasible. Never throws.
+export function solve(hours: Hour[], battery: Battery, directives: Directive[]): PlanHour[] | null;
 
-# C owns this:
-def solve(hours: list[dict], battery: dict,
-          directives: list[Directive]) -> list[PlanHour] | None:
-    """Returns a valid 24-entry plan, or None if infeasible. Never raises."""
+// D owns this — returns violation strings. Empty array === valid.
+export function replay(hours: Hour[], battery: Battery,
+                       directives: Directive[], plan: PlanHour[]): string[];
 
-# D owns this:
-def replay(hours: list[dict], battery: dict, directives: list[Directive],
-           plan: list[PlanHour]) -> list[str]:
-    """Returns a list of violation strings. Empty list == valid."""
-
-# A owns app.py, which wires exactly this and nothing else:
-#   raw = interpret(...)  ->  dirs = guard(raw, ...)  ->  plan = solve(..., dirs)
-#   ->  errs = replay(..., dirs, plan)  ->  response
+// A owns index.ts, which wires exactly this and nothing else:
+//   raw = await interpret(...)  ->  dirs = guard(raw, ...)  ->  plan = solve(..., dirs)
+//   ->  errs = replay(..., dirs, plan)  ->  response
 ```
 
 **Rules that make parallel work possible:**
@@ -108,23 +111,25 @@ def replay(hours: list[dict], battery: dict, directives: list[Directive],
 1. **One person per file.** Nobody edits a file they do not own. This eliminates merge conflicts entirely.
 2. **A pushes a skeleton with working stubs at T+0:15.** Every function above exists and returns a hard-coded valid value, so the service runs end to end from minute 15.
 3. **Everyone works on `main`**, commits small and often, and pulls before every push. With one owner per file this is safe and faster than branches.
-4. **`guard()` and `solve()` never raise and never return garbage.** Failure modes are `no_op` and `None` respectively — the service always answers 200 with a valid plan.
+4. **`guard()` and `solve()` never raise and never return garbage.** Failure modes are `no_op` and `null` respectively — the service always answers 200 with a valid plan.
 
 ### Stack decision (made, don't re-litigate)
 
-Python 3.11 · FastAPI + uvicorn · pydantic v2 · scipy (`linprog`, method `highs`) · Docker. No other solver dependency needed.
+**Bun + TypeScript.** `Bun.serve()` with the native `routes` option, `zod` for request validation, `bun test` for the harness, Docker via the official `oven/bun` image. The skeleton is already committed and running (`bun run index.ts` → `/` and `/health`).
+
+> **⚠️ C read this:** the LP was verified against the 10 public cases using SciPy's `linprog(method="highs")`. There is no SciPy here. Use **`highs-js`** — a WASM build of the *same* HiGHS solver — so the verified result carries over exactly. `glpk.js` is the fallback. **Do not use `javascript-lp-solver`**: it is a pure-JS simplex with weaker numerics, and §2's zero-cost edge case gives no partial credit for a near-optimal answer. Prove the solver choice on all 10 public costs before building anything on top of it — that is C's first hour.
 
 ### File ownership map
 
 ```
-app.py            A     main.py, routes, wiring, error handlers
-types.py          A     shared types above, frozen
-schemas.py        A     pydantic request/response models
-interpreter.py    B     prompt, model call, JSON parse, cache, fallback extractor
-guardrails.py     B     guard() — validate and repair
-optimizer.py      C     solve() — LP model, netting, rounding
-validator.py      D     replay() — the Final Validator stage
-run_public.py     D     harness that runs all 10 public cases
+index.ts          A     Bun.serve, routes, wiring, error handlers
+types.ts          A     shared types above, frozen
+schemas.ts        A     zod request/response schemas
+interpreter.ts    B     prompt, model call, JSON parse, cache, fallback extractor
+guardrails.ts     B     guard() — validate and repair
+optimizer.ts      C     solve() — LP model, netting, rounding
+validator.ts      D     replay() — the Final Validator stage
+run-public.ts     D     harness that runs all 10 public cases
 README.md         D
 Dockerfile        A
 ```
@@ -146,7 +151,7 @@ Each brief is self-contained. Read yours, then start. Do not wait for anyone els
 ### Your first 15 minutes (everyone is blocked on you — do this first)
 
 1. Create the GitHub repo **after question reveal**, private. Add the other three as collaborators.
-2. Commit `types.py`, `schemas.py`, `app.py`, `interpreter.py`, `guardrails.py`, `optimizer.py`, `validator.py` — every one a **working stub**:
+2. Commit `types.ts`, `schemas.ts`, `interpreter.ts`, `guardrails.ts`, `optimizer.ts`, `validator.ts` alongside the existing `index.ts` — every one a **working stub**:
    - `interpret()` returns `[]`
    - `guard()` returns one `no_op` per note
    - `solve()` returns a trivially valid plan: solar first, battery idle all 24 hours, grid covers the rest (always feasible, always neutral)
@@ -177,7 +182,7 @@ Each brief is self-contained. Read yours, then start. Do not wait for anyone els
 }
 ```
 
-- **The wiring, exactly as frozen in §3.** If `solve()` returns `None` or `replay()` returns violations, fall back to the baseline plan and still return **200**. Never 500 on a valid request.
+- **The wiring, exactly as frozen in §3.** If `solve()` returns `null` or `replay()` returns violations, fall back to the baseline plan and still return **200**. Never 500 on a valid request.
 - **Global exception handler** so nothing escapes as a stack trace.
 - **Dockerfile.** Bind `0.0.0.0`, expose the documented port, **no baked-in secrets** (env vars only). Push to Docker Hub or GHCR with an **exact tag or digest**.
 - **Verify the image from a machine that never built it:** `docker pull <exact tag>` → `docker run` → `/health` responds. This is worth 4 points on its own and is only provable by actually doing it.
@@ -214,7 +219,7 @@ Take over latency work with B: response caching, connection pooling, warm start.
 - Spell out the two normalisation traps in the system prompt, with examples:
   - **Windows are start-inclusive, end-exclusive.** "1 PM to 3 PM" → `[13,14]`. "from 6 PM until 10 PM" → `[18,19,20,21]`. "between 11 AM and 2 PM" → `[11,12,13]`.
   - **`factor` is the fraction that REMAINS.** "drop to 20%" → `0.2`. "an 80% reduction" → `0.2`. "roughly half" → `0.5`. "one-fifth of normal" → `0.2`.
-- 4–6 few-shot examples covering all five directive types **plus a distractor → `no_op`**. **Paraphrase them yourself — do not copy public wording verbatim** (see §12 trap 6).
+- 4–6 few-shot examples covering all five directive types **plus a distractor → `no_op`**. **Paraphrase them yourself — do not copy public wording verbatim** (see §5 trap 6).
 - State explicitly: *never invent demand, solar, tariff or battery limits; if the note does not change the 24-hour energy schedule, emit `no_op`.*
 
 **Latency — 3 of the 10 reliability points.** p95 ≤ 5s = 3/3; >5–15s = 2/3; >15–30s = 1/3; >30s = failure. One fast model call (Haiku-class) plus C's LP (~1.5 ms) sits comfortably under 5s. Hard client timeout ~8s. **Cache by hash of `operator_notes`** — hidden suites repeat paraphrases.
@@ -285,13 +290,13 @@ s.t.  g[h] + s[h] + d[h] − c[h] = demand[h]          (energy balance, every h)
       E[23] = E0                     (end-of-day neutrality)
 ```
 
-`scipy.optimize.linprog(method="highs")`. Sub-millisecond, no extra dependency.
+Solve it with **`highs-js`** (`bun add highs-js`) — the WASM build of HiGHS, the same solver that produced the verified reference costs. Sub-millisecond. See the warning in §3 before picking anything else.
 
 ### The three details that break plans
 
 1. **Net the battery.** The LP can return tiny simultaneous `c[h]` and `d[h]`. Compute `net = c[h] − d[h]`; `net > tol` ⇒ `charge`, `net < −tol` ⇒ `discharge`, else `idle` with `battery_kwh = 0`. Then **re-derive every `E[h]` from the netted actions** so `battery_energy_after_kwh` is internally consistent.
 2. **Round, then total.** Round hourly values to 4 dp, then compute `total_grid_kwh`, `total_cost_bdt`, `peak_grid_kwh` **from the rounded plan**. The judge recomputes totals from `hourly_plan` and compares within 0.01. Clamp `−1e-9`-style negatives to exactly `0`.
-3. **Infeasibility means misinterpretation, not impossibility.** Organizer scoring scenarios are guaranteed feasible, so an infeasible LP means B misread a note. Relax in this order and re-solve: (1) drop `max_grid_window` caps, (2) drop `minimum_battery_reserve` raises, (3) drop charge/discharge windows, (4) baseline plan — solar first, battery idle all day, grid covers the rest. Always hand A a valid plan. **Never return `None` to the caller without A having a baseline to fall back on.**
+3. **Infeasibility means misinterpretation, not impossibility.** Organizer scoring scenarios are guaranteed feasible, so an infeasible LP means B misread a note. Relax in this order and re-solve: (1) drop `max_grid_window` caps, (2) drop `minimum_battery_reserve` raises, (3) drop charge/discharge windows, (4) baseline plan — solar first, battery idle all day, grid covers the rest. Always hand A a valid plan. **Never return `null` to the caller without A having a baseline to fall back on.**
 
 ### Your first hour — you can go end to end without B
 
@@ -303,7 +308,7 @@ D's harness feeds you `expected_output.directive_interpretation` straight from t
 - [ ] All 10 public cases, fed the expected directives → all 10 costs match the reference within 0.01
 - [ ] All 10 plans pass D's `replay()` with zero violations
 - [ ] `E_after[23] == initial_energy_kwh` on every case
-- [ ] Deliberately over-constrained input (e.g. grid cap of 0 all day) → returns a plan or `None`, never raises
+- [ ] Deliberately over-constrained input (e.g. grid cap of 0 all day) → returns a plan or `null`, never throws
 
 ### If you finish early
 
@@ -317,7 +322,7 @@ Build the degenerate cases the public pack does not cover and check them: solar 
 
 **Scores:** Category 7 (10) outright, and you are how Category 2 (25) is actually proven.
 
-### Build first: `run_public.py` (the team's shared instrument)
+### Build first: `run-public.ts` (the team's shared instrument)
 
 Everyone else is blocked on measurement. **Have this running by T+0:45.** It should:
 
@@ -381,7 +386,7 @@ Problem → the six-stage architecture → how the LLM feeds guardrails feeds th
 
 ### Done when
 
-- [ ] `run_public.py` reports 10/10 interpretation, 10/10 valid, 10/10 cost — **against the deployed URL, not localhost**
+- [ ] `run-public.ts` reports 10/10 interpretation, 10/10 valid, 10/10 cost — **against the deployed URL, not localhost**
 - [ ] Every fault-injection row behaves
 - [ ] A followed the README on a clean machine and asked zero questions
 - [ ] Video is uploaded, accessible, and ≤ 3:00
@@ -395,7 +400,7 @@ Four swimlanes. The only hard dependency is A's skeleton at T+0:15.
 | Time | A — Service | B — Interpretation | C — Optimizer | D — Verification |
 |---|---|---|---|---|
 | **0:00–0:15** | **ALL FOUR TOGETHER: freeze §3 interfaces** | | | |
-| 0:15–0:45 | Repo + stubs pushed, deploy pipeline live | Prompt v1, provider wired | LP model from §7 | `run_public.py` skeleton |
+| 0:15–0:45 | Repo + stubs pushed, deploy pipeline live | Prompt v1, provider wired | LP model from C's brief | `run-public.ts` skeleton |
 | 0:45–1:00 | `/health` public, schemas + 400s | JSON parse + retry | SAMPLE-01 == 38365 | Harness + `--directives-from-expected` |
 | **1:00** | **SYNC 1** — public URL up · C hits 38365 · harness runs | | | |
 | 1:00–2:00 | Response assembly, wiring, Dockerfile | `guard()` + all 6 types | All 10 costs match | `replay()` written independently |
