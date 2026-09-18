@@ -9,7 +9,9 @@
     "dev": "bun --watch src/index.ts",
     "eval:notes": "bun run eval-notes.ts",
     "check:key": "bun run check-key.ts",
-    "verify": "bun run verify.ts"
+    "verify": "bun run verify.ts",
+    "public": "bun run run-public.ts",
+    "faults": "bun run fault-inject.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
