@@ -1,0 +1,9 @@
+.git
+node_modules
+docs
+data
+README.md
+.env
+.env.*
+!.env.example
+*.tsbuildinfo

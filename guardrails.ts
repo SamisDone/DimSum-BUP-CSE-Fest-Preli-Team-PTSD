@@ -5,10 +5,15 @@
  * operator note. Never throws. Anything it cannot repair becomes no_op rather
  * than reaching the optimizer as a bad constraint.
  *
- * Deliberately does NOT merge entries. The contract is one entry per note, in
- * note_index order — merging two notes that happen to share a directive type
- * would break that. Combining overlapping constraints (max of two reserves,
- * min of two grid caps) belongs in the optimizer when it builds its model.
+ * If the model claims the same note_index twice (a real failure mode — see
+ * the "duplicate index" fault-injection case), and both claims agree on a
+ * real directive type, the two are merged rather than the second one being
+ * silently dropped: union the hours, and tighten the numeric bound (min
+ * factor, max reserve, min grid cap). This never reduces the entry count —
+ * the contract is still exactly one Directive per note, in note_index order.
+ * It does NOT merge across different notes that happen to share a directive
+ * type; combining constraint effects across separate notes belongs to the
+ * optimizer when it builds its model.
  */
 import type { Battery, Directive, DirectiveType } from "./types";
 import type { RawEntry } from "./interpreter";
@@ -98,9 +103,80 @@ function buildAdjustment(
   }
 }
 
+/** Builds the Directive for a single raw entry, independent of any others. */
+function buildDirective(
+  idx: number,
+  entry: RawEntry,
+  explanation: string,
+  battery: Battery,
+): Directive {
+  // Unsupported or missing type collapses to no_op — never invented.
+  const type = entry.directive_type;
+  if (typeof type !== "string" || !TYPE_SET.has(type)) return noOp(idx, explanation);
+  if (type === "no_op") return noOp(idx, explanation);
+
+  const adjustment = buildAdjustment(type as Exclude<DirectiveType, "no_op">, entry, battery);
+  if (!adjustment) return noOp(idx, explanation);
+
+  return {
+    note_index: idx,
+    applies: true,
+    directive_type: type as DirectiveType,
+    structured_adjustment: adjustment,
+    explanation,
+  };
+}
+
+/**
+ * Combines two Directives that were both mapped to the same note_index and
+ * share the same real directive type: union the hours, tighten the numeric
+ * bound. Assumes both were already built by buildDirective(), so their
+ * structured_adjustment shapes are already valid for `type`.
+ */
+function mergeDirectives(a: Directive, b: Directive): Directive {
+  const type = a.directive_type;
+  const adjA = a.structured_adjustment as Record<string, unknown>;
+  const adjB = b.structured_adjustment as Record<string, unknown>;
+
+  const hours = [...new Set([...(adjA.hours as number[]), ...(adjB.hours as number[])])].sort(
+    (x, y) => x - y,
+  );
+
+  let rest: Record<string, unknown> = {};
+  switch (type) {
+    case "solar_reduction":
+      rest = { factor: Math.min(adjA.factor as number, adjB.factor as number) };
+      break;
+    case "minimum_battery_reserve":
+      rest = {
+        minimum_energy_kwh: Math.max(
+          adjA.minimum_energy_kwh as number,
+          adjB.minimum_energy_kwh as number,
+        ),
+      };
+      break;
+    case "max_grid_window":
+      rest = { max_grid_kwh: Math.min(adjA.max_grid_kwh as number, adjB.max_grid_kwh as number) };
+      break;
+    case "no_charge_window":
+    case "no_discharge_window":
+      break;
+  }
+
+  return {
+    note_index: a.note_index,
+    applies: true,
+    directive_type: type,
+    structured_adjustment: { hours, ...rest },
+    explanation: a.explanation,
+  };
+}
+
 /**
  * Always returns exactly `nNotes` directives, indexed 0..nNotes-1 in order.
- * Unmapped, duplicate, out-of-range and unrepairable entries become no_op.
+ * Unmapped, out-of-range and unrepairable entries become no_op. A note_index
+ * claimed more than once is merged (see mergeDirectives) when both claims
+ * agree on a real type, otherwise the first valid mapping wins.
  */
 export function guard(
   raw: unknown,
@@ -118,46 +194,25 @@ export function guard(
     if (typeof item !== "object" || item === null) continue;
     const entry = item as RawEntry;
 
-    // Note mapping: must identify a real note, exactly once.
+    // Note mapping: must identify a real note.
     if (!isFiniteNumber(entry.note_index)) continue;
     const idx = Math.trunc(entry.note_index);
     if (idx < 0 || idx >= nNotes) continue;
-    if (filled.has(idx)) continue; // first mapping wins; duplicates dropped
-    filled.add(idx);
 
-    const explanation = cleanText(
-      entry.explanation,
-      "Interpreted from the operator note.",
-    );
+    const explanation = cleanText(entry.explanation, "Interpreted from the operator note.");
+    const candidate = buildDirective(idx, entry, explanation, battery);
 
-    // Unsupported or missing type collapses to no_op — never invented.
-    const type = entry.directive_type;
-    if (typeof type !== "string" || !TYPE_SET.has(type)) {
-      out[idx] = noOp(idx, explanation);
-      continue;
-    }
-    if (type === "no_op") {
-      out[idx] = noOp(idx, explanation);
+    if (!filled.has(idx)) {
+      out[idx] = candidate;
+      filled.add(idx);
       continue;
     }
 
-    const adjustment = buildAdjustment(
-      type as Exclude<DirectiveType, "no_op">,
-      entry,
-      battery,
-    );
-    if (!adjustment) {
-      out[idx] = noOp(idx, explanation);
-      continue;
+    const existing = out[idx]!;
+    if (existing.directive_type === candidate.directive_type && existing.directive_type !== "no_op") {
+      out[idx] = mergeDirectives(existing, candidate);
     }
-
-    out[idx] = {
-      note_index: idx,
-      applies: true,
-      directive_type: type as DirectiveType,
-      structured_adjustment: adjustment,
-      explanation,
-    };
+    // Conflicting types for the same note_index: keep the first valid mapping.
   }
 
   return out;
