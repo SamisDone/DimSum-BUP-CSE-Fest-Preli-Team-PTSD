@@ -17,7 +17,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@google/genai": "^2.23.0",
+    "@ai-sdk/google": "^4.0.75",
+    "ai": "^7.0.106",
     "zod": "^4.6.5"
   }
 }

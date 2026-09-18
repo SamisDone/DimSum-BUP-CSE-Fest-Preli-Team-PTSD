@@ -4,27 +4,77 @@
  * Turns natural-language operator notes into RAW, UNTRUSTED structured output.
  * This module is allowed to be wrong. `guardrails.ts` is the layer that is not.
  * Nothing here is ever fed straight to the optimizer.
+ *
+ * Uses the Vercel AI SDK (`ai` + `@ai-sdk/google`). generateObject validates
+ * the model's JSON against the Zod schema before we ever see it — but that is a
+ * convenience, not a guarantee, so guard() still re-checks everything.
  */
-import { GoogleGenAI, Type } from "@google/genai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { generateObject } from "ai";
+import { z } from "zod";
 import type { Battery } from "./types";
 
-const MODEL = Bun.env.GEMINI_MODEL ?? "gemini-2.5-flash";
-const TIMEOUT_MS = Number(Bun.env.LLM_TIMEOUT_MS ?? 8000);
+const MODEL = Bun.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite";
+const TIMEOUT_MS = Number(Bun.env.LLM_TIMEOUT_MS ?? 20000);
 
-// The SDK reads GEMINI_API_KEY / GOOGLE_API_KEY from the environment itself.
-const ai = new GoogleGenAI({});
+// The AI SDK's own env var is GOOGLE_GENERATIVE_AI_API_KEY. We pass the key
+// explicitly so the GEMINI_API_KEY already in .env keeps working, and accept
+// either name.
+const google = createGoogleGenerativeAI({
+  apiKey:
+    Bun.env.GEMINI_API_KEY ??
+    Bun.env.GOOGLE_GENERATIVE_AI_API_KEY ??
+    Bun.env.GOOGLE_API_KEY ??
+    "",
+});
 
 /**
- * One raw entry per note, exactly as the model emits it.
+ * One raw entry per note.
  *
  * Deliberately FLAT rather than a discriminated union on structured_adjustment:
- * Gemini's responseSchema is an OpenAPI subset with poor union support, and a
- * flat shape means the model can never emit a malformed adjustment object.
- * guardrails.ts assembles the real structured_adjustment from these fields.
+ * a flat shape means the model can never emit a malformed adjustment object,
+ * and guardrails.ts assembles the real structured_adjustment from these fields.
  *
  * Note there is no `applies` field. It is derived (`directive_type !== "no_op"`),
  * so the model cannot get it wrong — that closes off trap 4 entirely.
+ *
+ * Everything except note_index/directive_type is optional: a no_op has no hours,
+ * and a no_charge_window has no numeric value.
  */
+const EntrySchema = z.object({
+  note_index: z.number().int().describe("0-based index of the operator note."),
+  directive_type: z.enum([
+    "solar_reduction",
+    "minimum_battery_reserve",
+    "no_charge_window",
+    "no_discharge_window",
+    "max_grid_window",
+    "no_op",
+  ]),
+  hours: z
+    .array(z.number().int())
+    .optional()
+    .describe("Affected hours 0-23, start-inclusive and end-exclusive. Omit for no_op."),
+  factor: z
+    .number()
+    .optional()
+    .describe("solar_reduction only. The fraction of solar that REMAINS, 0..1."),
+  minimum_energy_kwh: z
+    .number()
+    .optional()
+    .describe("minimum_battery_reserve only. Absolute kWh, percentages already resolved."),
+  max_grid_kwh: z
+    .number()
+    .optional()
+    .describe("max_grid_window only. Hourly grid import cap in kWh."),
+  explanation: z.string().describe("One short sentence explaining the interpretation."),
+});
+
+const ResponseSchema = z.object({
+  entries: z.array(EntrySchema),
+});
+
+/** What guard() consumes. Every field is re-validated there regardless. */
 export interface RawEntry {
   note_index?: unknown;
   directive_type?: unknown;
@@ -35,74 +85,25 @@ export interface RawEntry {
   explanation?: unknown;
 }
 
-const RESPONSE_SCHEMA = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      note_index: {
-        type: Type.INTEGER,
-        description: "0-based index of the operator note this entry describes.",
-      },
-      directive_type: {
-        type: Type.STRING,
-        enum: [
-          "solar_reduction",
-          "minimum_battery_reserve",
-          "no_charge_window",
-          "no_discharge_window",
-          "max_grid_window",
-          "no_op",
-        ],
-      },
-      hours: {
-        type: Type.ARRAY,
-        items: { type: Type.INTEGER },
-        description:
-          "Affected hours, 0-23, start-inclusive and end-exclusive. Empty for no_op.",
-      },
-      factor: {
-        type: Type.NUMBER,
-        description:
-          "solar_reduction only. The fraction of solar that REMAINS, 0..1.",
-      },
-      minimum_energy_kwh: {
-        type: Type.NUMBER,
-        description:
-          "minimum_battery_reserve only. Absolute kWh, already resolved from any percentage.",
-      },
-      max_grid_kwh: {
-        type: Type.NUMBER,
-        description: "max_grid_window only. Hourly grid import cap in kWh.",
-      },
-      explanation: {
-        type: Type.STRING,
-        description: "One short sentence explaining the interpretation.",
-      },
-    },
-    required: ["note_index", "directive_type", "explanation"],
-  },
-};
-
 const SYSTEM_INSTRUCTION = `
 You convert campus energy operator notes into structured scheduling directives.
-Return one entry per note, in note_index order. Emit JSON only.
+Return one entry per note, in note_index order.
 
 DIRECTIVE TYPES
-- solar_reduction        solar output is reduced for some hours. Needs hours + factor.
+- solar_reduction          solar output is reduced for some hours. Needs hours + factor.
 - minimum_battery_reserve  battery must stay at or above an energy level. Needs hours + minimum_energy_kwh.
-- no_charge_window       battery cannot charge. Needs hours.
-- no_discharge_window    battery cannot discharge. Needs hours.
-- max_grid_window        grid import is capped per hour. Needs hours + max_grid_kwh.
-- no_op                  the note does not change the 24-hour energy schedule. hours empty.
+- no_charge_window         battery cannot charge. Needs hours.
+- no_discharge_window      battery cannot discharge. Needs hours.
+- max_grid_window          grid import is capped per hour. Needs hours + max_grid_kwh.
+- no_op                    the note does not change the 24-hour energy schedule. Omit hours.
 
 TIME WINDOWS ARE START-INCLUSIVE AND END-EXCLUSIVE
 Convert to whole hours 0-23 on a 24-hour clock, ascending, no duplicates.
-  "1 PM to 3 PM"            -> [13, 14]
-  "from 6 PM until 9 PM"    -> [18, 19, 20]
-  "from 6 PM until 10 PM"   -> [18, 19, 20, 21]
-  "between 11 AM and 2 PM"  -> [11, 12, 13]
-  "2 AM until 5 AM"         -> [2, 3, 4]
+  "1 PM to 3 PM"              -> [13, 14]
+  "from 6 PM until 9 PM"      -> [18, 19, 20]
+  "from 6 PM until 10 PM"     -> [18, 19, 20, 21]
+  "between 11 AM and 2 PM"    -> [11, 12, 13]
+  "2 AM until 5 AM"           -> [2, 3, 4]
   "for three hours from 9 AM" -> [9, 10, 11]
 
 FACTOR IS THE FRACTION THAT REMAINS, NOT THE FRACTION LOST
@@ -145,34 +146,14 @@ function buildPrompt(notes: string[], battery: Battery): string {
   ].join("\n");
 }
 
-async function callModel(notes: string[], battery: Battery): Promise<RawEntry[]> {
-  const res = await ai.models.generateContent({
-    model: MODEL,
-    contents: buildPrompt(notes, battery),
-    config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      responseMimeType: "application/json",
-      responseSchema: RESPONSE_SCHEMA,
-      temperature: 0,
-      // 0 disables thinking. This is an extraction task, not a reasoning task,
-      // and the p95 latency budget is 5s. Raise it only if accuracy needs it.
-      thinkingConfig: { thinkingBudget: 0 },
-      abortSignal: AbortSignal.timeout(TIMEOUT_MS),
-    },
-  });
-
-  const text = res.text;
-  if (!text) throw new Error("empty model response");
-
-  const parsed: unknown = JSON.parse(text);
-  if (!Array.isArray(parsed)) throw new Error("model did not return an array");
-  return parsed as RawEntry[];
-}
-
 /**
- * Raw model output. May be malformed, short, long, or nonsense — that is the
- * guardrail layer's problem. Returns [] rather than throwing, so a provider
- * outage degrades to "all notes look like no_op" instead of a 500.
+ * Raw model output. Returns [] rather than throwing, so a provider outage,
+ * rate limit or malformed response degrades to "every note looks like no_op"
+ * instead of a 500.
+ *
+ * NOTE: exactly ONE request per call. Do not add hedging or parallel retries —
+ * the Gemini free tier allows 15 requests/minute for this model, and doubling
+ * request volume turns a slow response into a 429 for every later case.
  */
 export async function interpret(
   notes: string[],
@@ -182,18 +163,38 @@ export async function interpret(
   const hit = cache.get(key);
   if (hit) return hit;
 
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const entries = await callModel(notes, battery);
-      cache.set(key, entries);
-      return entries;
-    } catch (err) {
-      // Never log the key or the raw error object — secret safety is scored.
-      console.error(
-        `interpret attempt ${attempt + 1} failed:`,
-        err instanceof Error ? err.message : "unknown error",
-      );
-    }
+  try {
+    const { object } = await generateObject({
+      model: google(MODEL),
+      schema: ResponseSchema,
+      system: SYSTEM_INSTRUCTION,
+      prompt: buildPrompt(notes, battery),
+      temperature: 0,
+      abortSignal: AbortSignal.timeout(TIMEOUT_MS),
+      // No retries. On the free tier a 429 needs ~50s to clear, so an
+      // immediate retry is guaranteed to fail AND burns a second request from
+      // the same 15/minute budget — making the next case fail too. Raise this
+      // to 1-2 only once the key is on a paid tier.
+      maxRetries: 0,
+      providerOptions: {
+        google: {
+          // Lowest reasoning the provider exposes. This is extraction, not
+          // reasoning, and thinking is what pushed latency past 18s.
+          thinkingConfig: { thinkingLevel: "low" },
+        },
+      },
+    });
+
+    cache.set(key, object.entries);
+    return object.entries;
+  } catch (err) {
+    // Never log the key or the raw error object — secret safety is scored.
+    const message = err instanceof Error ? err.message : "unknown error";
+    const rateLimited = message.includes("429") || /quota|RESOURCE_EXHAUSTED/i.test(message);
+    console.error(
+      `interpret failed${rateLimited ? " (RATE LIMITED)" : ""}, falling back to no_op: ` +
+        message.slice(0, 200),
+    );
+    return [];
   }
-  return [];
 }
