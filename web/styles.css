@@ -172,6 +172,19 @@ button {
   letter-spacing: -0.015em;
 }
 
+/* Sits with the wordmark, not the tagline: the team is an author credit, not
+   a description of the service. Muted so it never competes with "DimSum". */
+.team {
+  font-size: var(--f-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--grid);
+  border: 1px solid color-mix(in srgb, var(--grid) 35%, var(--rule));
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
 .tagline {
   color: var(--ink-muted);
   font-size: var(--f-sm);
