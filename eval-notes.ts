@@ -61,7 +61,15 @@ let notesOk = 0;
 let casesOk = 0;
 const latencies: number[] = [];
 
+// The Gemini free tier allows 15 requests/minute for flash-lite. Ten cases
+// back to back can trip it, and a 429 shows up as a false interpretation
+// failure. Space them out; override with EVAL_DELAY_MS=0 on a paid tier.
+const DELAY_MS = Number(Bun.env.EVAL_DELAY_MS ?? 4500);
+let first = true;
+
 for (const c of selected) {
+  if (!first && DELAY_MS > 0) await Bun.sleep(DELAY_MS);
+  first = false;
   const started = Date.now();
   const raw = await interpret(c.input.operator_notes, c.input.battery);
   const got = guard(raw, c.input.operator_notes.length, c.input.battery);
@@ -85,7 +93,10 @@ for (const c of selected) {
   }
   if (caseOk) casesOk++;
 
-  console.log(`${caseOk ? "PASS" : "FAIL"}  ${c.id}  ${c.label}`);
+  const ms = latencies[latencies.length - 1]!;
+  console.log(
+    `${caseOk ? "PASS" : "FAIL"}  ${c.id}  ${String(ms).padStart(6)}ms  ${c.label}`,
+  );
   if (!caseOk || only) console.log(lines.join("\n"));
 }
 
