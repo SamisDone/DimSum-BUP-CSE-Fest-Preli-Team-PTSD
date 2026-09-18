@@ -14,6 +14,8 @@ RUN bun install --frozen-lockfile --production
 
 COPY src/ ./src/
 COPY web/ ./web/
+# CI smoke test: this comment is a no-op push to confirm docker-publish.yml
+# fires and publishes on a direct push to main, not just a PR merge.
 
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
