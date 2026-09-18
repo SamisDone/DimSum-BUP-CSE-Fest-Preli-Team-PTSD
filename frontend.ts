@@ -26,8 +26,12 @@ const PORT = Number(Bun.env.FRONTEND_PORT ?? 3500);
 const HOSTNAME = Bun.env.FRONTEND_HOSTNAME ?? "0.0.0.0";
 const DEFAULT_API_BASE = Bun.env.API_BASE ?? "http://localhost:3000";
 
-const SAMPLES_PATH = "data/BUP_CSE_FEST_2026_Preli_Public_Sample_Cases.json";
-const PAGE_PATH = "public/index.html";
+// Resolved against this file's own directory, not the process cwd, so the
+// console works when started from anywhere (a subdirectory, an IDE run button,
+// a launch script) rather than only from the repository root.
+const ROOT = import.meta.dir;
+const SAMPLES_PATH = `${ROOT}/data/BUP_CSE_FEST_2026_Preli_Public_Sample_Cases.json`;
+const PAGE_PATH = `${ROOT}/public/index.html`;
 
 /** Strip a trailing slash so base + path never doubles up. */
 function normalizeBase(base: string): string {
@@ -86,7 +90,8 @@ const server = Bun.serve({
         const page = Bun.file(PAGE_PATH);
         if (!(await page.exists())) {
           return new Response(
-            `Console page not found at ${PAGE_PATH}. Run this from the repository root.`,
+            `Console page not found at ${PAGE_PATH}.\n` +
+              `public/index.html must sit next to frontend.ts — check it was not lost in a merge.`,
             { status: 500, headers: { "Content-Type": "text/plain" } },
           );
         }
