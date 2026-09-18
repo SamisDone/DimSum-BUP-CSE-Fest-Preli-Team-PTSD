@@ -10,10 +10,10 @@
  */
 
 import { OptimizeEnergyRequestSchema } from "./schemas";
-import { interpret } from "./interpreter";
-import { guard } from "./guardrails";
-import { solve } from "./optimizer";
-import { replay } from "./validator";
+import { interpret } from "./interpreter/interpreter";
+import { guard } from "./interpreter/guardrails";
+import { solve } from "./optimizer/optimizer";
+import { replay } from "./validator/validator";
 import type { Battery, Directive, Hour, OptimizeEnergyResponse, PlanHour } from "./types";
 
 const PORT = Number(Bun.env.PORT ?? 3000);
@@ -87,19 +87,64 @@ function assembleResponse(
   };
 }
 
+/**
+ * Static files for the DimSum console.
+ *
+ * An explicit allowlist, not a path join: interpolating a request-supplied name
+ * into a filesystem read is a path-traversal hole, and `/assets/../src/index.ts`
+ * must never return source. Unknown names 404 as JSON, like every other route.
+ */
+const WEB_FILES: Record<string, string> = {
+  "index.html": "text/html; charset=utf-8",
+  "styles.css": "text/css; charset=utf-8",
+  "app.js": "text/javascript; charset=utf-8",
+  "charts.js": "text/javascript; charset=utf-8",
+  "samples.json": "application/json; charset=utf-8",
+};
+
+async function serveWeb(name: string): Promise<Response> {
+  const type = WEB_FILES[name];
+  if (!type) {
+    return Response.json({ error: "not_found", message: "No such asset." }, { status: 404 });
+  }
+  const file = Bun.file(`web/${name}`);
+  if (!(await file.exists())) {
+    return Response.json({ error: "not_found", message: "Asset missing." }, { status: 404 });
+  }
+  return new Response(file, {
+    headers: {
+      "content-type": type,
+      "cache-control": name === "index.html" ? "no-cache" : "public, max-age=300",
+    },
+  });
+}
+
 const server = Bun.serve({
   port: PORT,
   hostname: HOSTNAME,
 
   routes: {
+    // DimSum console. Served from this origin so the browser never needs CORS
+    // and the judged endpoints below stay exactly as they were — no auth, no
+    // redirect, no HTML. Guide line 140 forbids a dashboard being REQUIRED to
+    // reach the endpoints, not a page living alongside them.
     "/": {
+      GET: () => serveWeb("index.html"),
+    },
+
+    "/assets/:file": {
+      GET: (req) => serveWeb(req.params.file),
+    },
+
+    "/api-info": {
       GET: () =>
         Response.json({
           service: "gridwise-energy-optimizer",
           event: "BUP CSE Fest 2026 · Online Preliminary",
           status: "running",
           endpoints: {
-            "GET /": "this service description",
+            "GET /": "DimSum operator console",
+            "GET /api-info": "this service description",
             "GET /health": "readiness probe for the judge harness",
             "POST /optimize-energy": "energy plan for a 24h scenario",
           },

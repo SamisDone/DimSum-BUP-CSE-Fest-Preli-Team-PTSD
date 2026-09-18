@@ -1,7 +1,7 @@
 import { parseArgs } from "util";
-import { solve, computeTotals } from "./optimizer";
-import { replay, checkTotals } from "./validator";
-import type { Battery, Directive, Hour, PlanHour } from "./types";
+import { solve, computeTotals } from "./src/optimizer/optimizer";
+import { replay, checkTotals } from "./src/validator/validator";
+import type { Battery, Directive, Hour, PlanHour } from "./src/types";
 
 interface PublicCase {
   id: string;

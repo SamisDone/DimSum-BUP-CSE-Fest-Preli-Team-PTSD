@@ -1,7 +1,7 @@
 import { expect, test, describe } from "bun:test";
-import { replay, checkTotals } from "./validator";
-import { solve } from "./optimizer";
-import type { Battery, Directive, Hour, PlanHour } from "./types";
+import { replay, checkTotals } from "./src/validator/validator";
+import { solve } from "./src/optimizer/optimizer";
+import type { Battery, Directive, Hour, PlanHour } from "./src/types";
 
 const battery: Battery = {
   capacity_kwh: 100,

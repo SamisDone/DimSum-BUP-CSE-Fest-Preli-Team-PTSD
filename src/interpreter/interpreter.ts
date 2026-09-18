@@ -15,7 +15,7 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateObject } from "ai";
 import { z } from "zod";
-import type { Battery } from "./types";
+import type { Battery } from "../types";
 
 const MODEL = Bun.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite";
 

@@ -1,4 +1,10 @@
-import type { Battery, Directive, Hour, PlanHour } from "./types";
+/**
+ * Final Validator — owned by role D.
+ * Re-runs the judge's own checks against our output. Returns violation
+ * strings; empty array === valid. Never throws. See ACTION_PLAN.md §3, §D.
+ */
+
+import type { Battery, Directive, Hour, PlanHour } from "../types";
 
 const TOL = 0.01;
 

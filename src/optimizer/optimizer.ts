@@ -18,7 +18,7 @@ import highsLoader from "highs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import type { Battery, Directive, Hour, PlanHour } from "./types";
+import type { Battery, Directive, Hour, PlanHour } from "../types";
 
 /** Narrowed from PlanHour so the netting logic reads clearly. */
 type BatteryAction = PlanHour["battery_action"];

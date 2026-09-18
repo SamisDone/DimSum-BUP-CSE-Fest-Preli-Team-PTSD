@@ -15,7 +15,7 @@
  * type; combining constraint effects across separate notes belongs to the
  * optimizer when it builds its model.
  */
-import type { Battery, Directive, DirectiveType } from "./types";
+import type { Battery, Directive, DirectiveType } from "../types";
 import type { RawEntry } from "./interpreter";
 
 /**
