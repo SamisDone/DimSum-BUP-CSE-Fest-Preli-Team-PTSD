@@ -7,9 +7,20 @@
  */
 import { GoogleGenAI, Type } from "@google/genai";
 import type { Battery } from "./types";
+import { createSlidingWindowLimiter, isQuotaError } from "./rate-limiter";
+import { fallbackExtract } from "./interpreter-fallback";
 
 const MODEL = Bun.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 const TIMEOUT_MS = Number(Bun.env.LLM_TIMEOUT_MS ?? 8000);
+
+// Free-tier keys are capped at a small requests-per-minute quota (observed:
+// 15 RPM for gemini-3.1-flash-lite, returned as a RESOURCE_EXHAUSTED 429 with
+// the model name in the quota id). We can't buy headroom, so we track a local
+// sliding window and skip the network call once we're near the ceiling,
+// going straight to the deterministic fallback below instead of paying an
+// 8s timeout for a call that would just 429.
+const RATE_LIMIT_PER_MINUTE = Number(Bun.env.GEMINI_RPM_LIMIT ?? 12);
+const limiter = createSlidingWindowLimiter(RATE_LIMIT_PER_MINUTE);
 
 // The SDK reads GEMINI_API_KEY / GOOGLE_API_KEY from the environment itself.
 const ai = new GoogleGenAI({});
@@ -182,8 +193,14 @@ export async function interpret(
   const hit = cache.get(key);
   if (hit) return hit;
 
+  if (!limiter.hasBudget()) {
+    console.error("interpret: local rate budget exhausted, using fallback extractor");
+    return fallbackExtract(notes, battery);
+  }
+
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
+      limiter.recordCall();
       const entries = await callModel(notes, battery);
       cache.set(key, entries);
       return entries;
@@ -193,7 +210,10 @@ export async function interpret(
         `interpret attempt ${attempt + 1} failed:`,
         err instanceof Error ? err.message : "unknown error",
       );
+      // A 429 will fail identically on immediate retry; don't pay for a
+      // second doomed round trip when the fallback is right there.
+      if (isQuotaError(err)) break;
     }
   }
-  return [];
+  return fallbackExtract(notes, battery);
 }
