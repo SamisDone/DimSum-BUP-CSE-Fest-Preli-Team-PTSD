@@ -829,9 +829,20 @@ details pre {
   color: var(--ink-muted);
 }
 
-.pending .checks li,
-.pending .rules li {
-  opacity: 0.55;
+.checks .mk[data-ok="true"] {
+  color: var(--ok);
+}
+
+.checks .mk[data-ok="false"] {
+  color: var(--error);
+}
+
+.ck-detail {
+  color: var(--ink-muted);
+}
+
+.checks li:has(.mk[data-ok="false"]) .ck-detail {
+  color: var(--error);
 }
 
 .banner {

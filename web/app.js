@@ -12,6 +12,7 @@
  */
 
 import { energyChart, batteryChart, tariffChart } from "./charts.js";
+import { validatePlan } from "./validate.js";
 
 const $ = (sel) => document.querySelector(sel);
 const fmt = (n, d = 2) =>
@@ -353,6 +354,44 @@ function renderTable(hours, plan, affected) {
   }
 }
 
+/** Replay the judge's checks in the browser and render the outcome. */
+function renderChecks(r) {
+  const checks = validatePlan(
+    state.current.input.hours,
+    state.current.input.battery,
+    r.directive_interpretation ?? [],
+    r.hourly_plan ?? [],
+    {
+      total_grid_kwh: r.total_grid_kwh,
+      total_cost_bdt: r.total_cost_bdt,
+      peak_grid_kwh: r.peak_grid_kwh,
+    },
+  );
+
+  const host = $("#checks");
+  host.textContent = "";
+  for (const c of checks) {
+    const li = document.createElement("li");
+    const mk = document.createElement("span");
+    mk.className = "mk";
+    mk.dataset.ok = String(c.ok);
+    mk.textContent = c.ok ? "OK" : "!";
+    const body = document.createElement("span");
+    const label = document.createElement("strong");
+    label.style.fontWeight = "600";
+    label.textContent = c.label;
+    const detail = document.createElement("span");
+    detail.className = "ck-detail";
+    detail.textContent = ` — ${c.detail}`;
+    body.append(label, detail);
+    li.append(mk, body);
+    host.append(li);
+  }
+
+  const failed = checks.filter((c) => !c.ok).length;
+  return { total: checks.length, failed };
+}
+
 function draw() {
   const r = state.response;
   if (!r) return;
@@ -426,7 +465,14 @@ async function run() {
     stage(1, "done", `${dirs.length} entr${dirs.length === 1 ? "y" : "ies"} returned`);
     stage(2, "done", `${applied} applied · ${noops} no_op`);
     stage(3, "done", `${r.hourly_plan?.length ?? 0}-hour plan · ${fmt(r.total_cost_bdt)} BDT`);
-    stage(4, "idle", "not yet implemented");
+    const verdict = renderChecks(r);
+    stage(
+      4,
+      verdict.failed ? "active" : "done",
+      verdict.failed
+        ? `${verdict.failed} of ${verdict.total} checks failed`
+        : `${verdict.total}/${verdict.total} checks passed`,
+    );
     stage(5, "done", `7 fields · ${ms} ms`);
 
     $("#runstat").textContent = `${ms} ms — this request, measured in your browser`;

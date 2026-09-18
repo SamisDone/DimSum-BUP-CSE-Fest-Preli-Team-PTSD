@@ -99,6 +99,7 @@ const WEB_FILES: Record<string, string> = {
   "styles.css": "text/css; charset=utf-8",
   "app.js": "text/javascript; charset=utf-8",
   "charts.js": "text/javascript; charset=utf-8",
+  "validate.js": "text/javascript; charset=utf-8",
   "samples.json": "application/json; charset=utf-8",
 };
 

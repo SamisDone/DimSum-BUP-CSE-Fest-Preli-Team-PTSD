@@ -236,21 +236,16 @@ s.t.  grid[h] + solar[h] + discharge[h] − charge[h] = demand[h]
               </p>
             </div>
 
-            <div class="pending">
+            <div>
               <h3 style="font-size: var(--f-sm); margin-bottom: 10px">Final Validator</h3>
-              <div class="banner">
-                Not yet implemented. This stage is a stub in the service, so the page does not
-                claim any plan has been independently re-checked.
-              </div>
-              <ul class="checks">
-                <li><span class="mk">—</span>24 unique hours, 0 through 23</li>
-                <li><span class="mk">—</span>Energy balance holds every hour</li>
-                <li><span class="mk">—</span>Solar used never exceeds effective solar</li>
-                <li><span class="mk">—</span>Battery bounds and hourly rate limits</li>
-                <li><span class="mk">—</span>Charge and discharge windows respected</li>
-                <li><span class="mk">—</span>Grid caps respected</li>
-                <li><span class="mk">—</span>Final battery energy equals the initial level</li>
-                <li><span class="mk">—</span>Totals recomputed from the hourly plan</li>
+              <p class="note">
+                The service replays its own plan before answering, and falls back to a safe
+                baseline if anything fails. That result never reaches the response, so this
+                page re-runs the same checks here against what came back — independently
+                written from the specification, so agreement means something.
+              </p>
+              <ul class="checks" id="checks">
+                <li><span class="mk">—</span>Run a scenario to replay its plan</li>
               </ul>
             </div>
           </div>
