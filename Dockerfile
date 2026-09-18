@@ -13,6 +13,7 @@ COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
 COPY src/ ./src/
+COPY web/ ./web/
 
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0

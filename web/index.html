@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DimSum — GridWise Operator Console</title>
+    <meta
+      name="description"
+      content="Live console for the GridWise pipeline: operator notes interpreted by an LLM, validated by deterministic guardrails, scheduled by a linear program."
+    />
+    <link rel="stylesheet" href="/assets/styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%232e5e58'/%3E%3Cpath d='M4 11l3-6 2 3 3-5' stroke='%23d98e1f' stroke-width='1.6' fill='none'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="wrap">
+        <span class="wordmark">DimSum</span>
+        <span class="tagline">LLM-assisted campus energy optimization · BUP CSE Fest 2026</span>
+        <div class="masthead-tools">
+          <span class="badge" id="health" data-state="wait">
+            <span class="dot"></span><span id="health-label">checking</span>
+          </span>
+          <button class="theme-toggle" id="recheck" type="button">recheck</button>
+          <button class="theme-toggle" id="theme" type="button">theme</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- 1. pipeline ------------------------------------------------------ -->
+      <section>
+        <div class="wrap">
+          <p class="eyebrow">The pipeline</p>
+          <p class="lede">
+            Operator notes in plain English become hard scheduling constraints, then the
+            cheapest valid 24-hour plan.
+          </p>
+          <p class="note">
+            Six stages, named as the challenge specifies. They light up in order as a real
+            request moves through them — nothing on this page is simulated.
+          </p>
+          <div class="pipeline" id="pipeline"></div>
+        </div>
+      </section>
+
+      <!-- 2. run ----------------------------------------------------------- -->
+      <section>
+        <div class="wrap">
+          <p class="eyebrow">Run a scenario</p>
+          <div class="banner" id="banner" hidden></div>
+          <div class="controls">
+            <div>
+              <label class="field" for="scenario">
+                <span>Published scenario</span>
+                <select id="scenario"></select>
+              </label>
+              <p class="note" id="scenario-meta"></p>
+              <p class="note">
+                Demand, solar and tariff come from the organizer's published sample pack.
+                The notes below are sent to the live service exactly as written — edit them
+                to test wording the model has never seen.
+              </p>
+            </div>
+
+            <div>
+              <div class="field">
+                <span>Operator notes — 1 to 3</span>
+                <div class="notes-list" id="notes"></div>
+              </div>
+              <div class="runbar">
+                <button class="mini" id="add-note" type="button">add note</button>
+                <button class="mini" id="reset-notes" type="button">reset to original</button>
+              </div>
+              <div class="runbar" style="margin-top: 14px">
+                <button class="run" id="run" type="button">Run optimization</button>
+                <span class="runstat" id="runstat"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. results ------------------------------------------------------- -->
+      <section id="results" hidden>
+        <div class="wrap">
+          <p class="eyebrow">Result</p>
+          <div class="stats" id="stats"></div>
+          <p class="note" id="summary"></p>
+
+          <p class="eyebrow" style="margin-top: 34px">Directive interpretation</p>
+          <p class="note">
+            One entry per note, in order. <code>no_op</code> is the only type allowed to be
+            inapplicable — distractors must be recognised, not guessed at.
+          </p>
+          <div class="directives" id="directives"></div>
+
+          <p class="eyebrow" style="margin-top: 34px">Hourly energy</p>
+          <div class="chart">
+            <h3>Where each hour's energy comes from</h3>
+            <p class="note">
+              Stacked supply against campus demand (dashed). Tinted columns are hours a
+              directive applies to.
+            </p>
+            <div id="chart-energy"></div>
+            <div class="key">
+              <span><i style="background: var(--grid)"></i>grid</span>
+              <span><i style="background: var(--solar)"></i>solar used</span>
+              <span><i style="background: var(--battery)"></i>battery discharge</span>
+              <span><i style="background: var(--demand)"></i>demand</span>
+            </div>
+          </div>
+
+          <div class="chart">
+            <h3>Battery state of charge</h3>
+            <p class="note">
+              End-of-day neutrality is a hard constraint: the line must finish exactly where
+              it started, so the battery cannot be drained as a free source.
+            </p>
+            <div id="chart-battery"></div>
+          </div>
+
+          <div class="chart">
+            <h3>Grid purchase against tariff</h3>
+            <p class="note">
+              The optimizer's whole argument in one picture — buy when the tariff is low,
+              lean on solar and the battery when it is high.
+            </p>
+            <div id="chart-tariff"></div>
+          </div>
+
+          <p class="eyebrow" style="margin-top: 34px">24-hour plan</p>
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Hour</th>
+                  <th scope="col">Demand</th>
+                  <th scope="col">Solar avail.</th>
+                  <th scope="col">Solar used</th>
+                  <th scope="col">Grid</th>
+                  <th scope="col">Battery</th>
+                  <th scope="col">kWh</th>
+                  <th scope="col">Energy after</th>
+                  <th scope="col">Tariff</th>
+                </tr>
+              </thead>
+              <tbody id="plan-body"></tbody>
+            </table>
+          </div>
+
+          <details>
+            <summary>Raw request</summary>
+            <pre class="mono" id="raw-req"></pre>
+          </details>
+          <details>
+            <summary>Raw response</summary>
+            <pre class="mono" id="raw-res"></pre>
+          </details>
+        </div>
+      </section>
+
+      <!-- 4. how it works -------------------------------------------------- -->
+      <section>
+        <div class="wrap">
+          <p class="eyebrow">How it works</p>
+          <div class="cols">
+            <div>
+              <h3 style="font-size: var(--f-sm); margin-bottom: 10px">LLM Interpreter</h3>
+              <p class="note">
+                One call per request returns a structured entry for every note. Temperature
+                zero, a fixed response schema, battery capacity supplied in the prompt so
+                percentage reserves resolve to absolute kWh.
+              </p>
+              <p class="note">
+                Two normalisation rules decide most cases. Windows are start-inclusive and
+                end-exclusive, so <em>1 PM to 3 PM</em> is hours <code>[13, 14]</code>. And
+                <code>factor</code> is the fraction that <em>remains</em> — an 80% reduction
+                is <code>0.2</code>, not <code>0.8</code>.
+              </p>
+              <p class="note">
+                If the provider errors or stalls, the request is retried once, then falls
+                through to a deterministic extractor. The model stays the primary path; the
+                extractor exists so an outage degrades to a correct reading rather than
+                silently dropping every directive.
+              </p>
+            </div>
+
+            <div>
+              <h3 style="font-size: var(--f-sm); margin-bottom: 10px">Guardrail Validator</h3>
+              <p class="note">
+                Model output is untrusted until it passes deterministic checks. Anything
+                unrepairable becomes <code>no_op</code> rather than reaching the optimizer as
+                a bad constraint.
+              </p>
+              <ul class="rules">
+                <li>Exactly one entry per note, indexed 0…N−1, in order</li>
+                <li>Directive type must be one of the six supported values</li>
+                <li>Hours are unique integers 0–23, sorted ascending</li>
+                <li>Solar factor within 0 – 1 inclusive</li>
+                <li>Reserve finite, non-negative, never above capacity</li>
+                <li>Grid cap finite and non-negative</li>
+                <li><code>no_op</code> ⟹ not applicable, adjustment null</li>
+                <li>Any other type ⟹ applicable, adjustment matches its shape</li>
+                <li>Demand, tariff and battery parameters can never be altered</li>
+              </ul>
+              <p class="note" style="margin-top: 12px">
+                Try it above: edit a note into wording the model has not seen, or replace one
+                with something irrelevant, and watch what comes back.
+              </p>
+            </div>
+
+            <div>
+              <h3 style="font-size: var(--f-sm); margin-bottom: 10px">Math Optimizer</h3>
+              <p class="note">
+                A linear program solved with HiGHS. Continuous variables per hour for grid
+                draw, solar used, charge and discharge.
+              </p>
+              <pre class="math mono">
+minimize  Σ tariff[h] · grid[h]
+
+s.t.  grid[h] + solar[h] + discharge[h] − charge[h] = demand[h]
+      0 ≤ solar[h] ≤ effective_solar[h]
+      0 ≤ charge[h] ≤ max_charge        (0 in no-charge hours)
+      0 ≤ discharge[h] ≤ max_discharge  (0 in no-discharge hours)
+      0 ≤ grid[h] ≤ cap[h]              (where a cap applies)
+      reserve[h] ≤ E[h] ≤ capacity
+      E[23] = E[0]</pre
+              >
+              <p class="note">
+                Curtailment is allowed — unused solar is simply not taken. Totals are derived
+                from the rounded hourly plan, never from solver internals, because the plan is
+                the source of truth.
+              </p>
+            </div>
+
+            <div class="pending">
+              <h3 style="font-size: var(--f-sm); margin-bottom: 10px">Final Validator</h3>
+              <div class="banner">
+                Not yet implemented. This stage is a stub in the service, so the page does not
+                claim any plan has been independently re-checked.
+              </div>
+              <ul class="checks">
+                <li><span class="mk">—</span>24 unique hours, 0 through 23</li>
+                <li><span class="mk">—</span>Energy balance holds every hour</li>
+                <li><span class="mk">—</span>Solar used never exceeds effective solar</li>
+                <li><span class="mk">—</span>Battery bounds and hourly rate limits</li>
+                <li><span class="mk">—</span>Charge and discharge windows respected</li>
+                <li><span class="mk">—</span>Grid caps respected</li>
+                <li><span class="mk">—</span>Final battery energy equals the initial level</li>
+                <li><span class="mk">—</span>Totals recomputed from the hourly plan</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. api ----------------------------------------------------------- -->
+      <section>
+        <div class="wrap">
+          <p class="eyebrow">The API</p>
+          <p class="note">
+            This console is a client of the same public endpoints a judge would call. It adds
+            no authentication and no gate — the service answers directly.
+          </p>
+          <pre class="math mono">
+GET  /health            → 200 {"status":"ok"}
+POST /optimize-energy   → 200 scenario_id, directive_interpretation, hourly_plan,
+                              total_grid_kwh, total_cost_bdt, peak_grid_kwh, plan_summary
+GET  /api-info          → service description</pre
+          >
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p>
+          <strong>DimSum</strong> — GridWise Smart Campus Energy Optimization, BUP CSE Fest 2026
+          online preliminary.
+        </p>
+        <p>
+          Every figure on this page comes from a live call to this service. Scenario inputs and
+          the reference costs used for comparison are the organizer's published sample pack.
+          Latency shown is the round trip measured in your browser for that single request —
+          it is not a percentile across a suite.
+        </p>
+      </div>
+    </footer>
+
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>
