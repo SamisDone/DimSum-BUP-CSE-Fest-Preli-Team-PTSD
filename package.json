@@ -8,7 +8,8 @@
     "start": "bun run index.ts",
     "dev": "bun --watch index.ts",
     "eval:notes": "bun run eval-notes.ts",
-    "check:key": "bun run check-key.ts"
+    "check:key": "bun run check-key.ts",
+    "verify": "bun run verify.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
