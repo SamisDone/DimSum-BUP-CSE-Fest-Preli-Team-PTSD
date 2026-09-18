@@ -10,10 +10,10 @@
  */
 
 import { OptimizeEnergyRequestSchema } from "./schemas";
-import { interpret } from "./interpreter";
-import { guard } from "./guardrails";
-import { solve } from "./optimizer";
-import { replay } from "./validator";
+import { interpret } from "./interpreter/interpreter";
+import { guard } from "./interpreter/guardrails";
+import { solve } from "./optimizer/optimizer";
+import { replay } from "./validator/validator";
 import type { Battery, Directive, Hour, OptimizeEnergyResponse, PlanHour } from "./types";
 
 const PORT = Number(Bun.env.PORT ?? 3000);

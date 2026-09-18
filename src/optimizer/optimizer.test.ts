@@ -20,7 +20,7 @@ import {
   solve,
   solverInfo,
 } from "./optimizer";
-import type { Battery, Directive, Hour, PlanHour } from "./types";
+import type { Battery, Directive, Hour, PlanHour } from "../types";
 
 const TOL = 0.01;
 const H = 24;

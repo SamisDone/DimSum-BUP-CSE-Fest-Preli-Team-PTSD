@@ -12,9 +12,9 @@
  * `eval-notes.ts` is the companion to this: it exercises the real LLM path and
  * needs a key and ~60s. This one is safe to run on every edit.
  */
-import { guard } from "./guardrails";
-import { extractDirectives } from "./interpreter";
-import type { Battery, Directive } from "./types";
+import { guard } from "./src/interpreter/guardrails";
+import { extractDirectives } from "./src/interpreter/interpreter";
+import type { Battery, Directive } from "./src/types";
 
 const battery: Battery = {
   capacity_kwh: 200,

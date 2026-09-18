@@ -8,9 +8,9 @@
  * No HTTP, no optimizer, no dependency on roles A/C/D. This is the number to
  * hill-climb: 10/10 notes correct means category 1 (25 pts) is covered.
  */
-import { interpret } from "./interpreter";
-import { guard } from "./guardrails";
-import type { Battery, Directive } from "./types";
+import { interpret } from "./src/interpreter/interpreter";
+import { guard } from "./src/interpreter/guardrails";
+import type { Battery, Directive } from "./src/types";
 
 interface PublicCase {
   id: string;

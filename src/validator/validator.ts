@@ -7,7 +7,7 @@
  * written from the Problem Statement §11 text directly.
  */
 
-import type { Battery, Directive, Hour, PlanHour } from "./types";
+import type { Battery, Directive, Hour, PlanHour } from "../types";
 
 export function replay(
   hours: Hour[],
