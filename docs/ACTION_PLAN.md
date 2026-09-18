@@ -239,7 +239,7 @@ Runs on every model output. Reject-and-repair, never trust:
 - [ ] `minimum_energy_kwh` finite, `0 ≤ r ≤ capacity_kwh`
 - [ ] `max_grid_kwh` finite, `≥ 0`
 - [ ] No mutation of demand / solar / tariff / battery parameters
-- [ ] Merge duplicates of the same type: union the hours; min factor, max reserve, min grid cap
+- [ ] Do **not** merge entries. One entry per note is the contract — merging two notes that share a directive type breaks `note_index` ordering. Combining overlapping constraints (max of two reserves, min of two grid caps) is the optimizer's job when it builds its model, not the guardrail's
 
 Anything unrepairable → downgrade **that entry** to `no_op` rather than crashing. **Return the repaired entries to A**, so the interpretation in the response is exactly what C optimized against.
 

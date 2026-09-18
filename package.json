@@ -6,7 +6,9 @@
   "private": true,
   "scripts": {
     "start": "bun run index.ts",
-    "dev": "bun --watch index.ts"
+    "dev": "bun --watch index.ts",
+    "eval:notes": "bun run eval-notes.ts",
+    "check:key": "bun run check-key.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
@@ -15,6 +17,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@google/genai": "^2.23.0",
     "zod": "^4.6.5"
   }
 }
